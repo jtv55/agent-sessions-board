@@ -124,7 +124,19 @@
 
   function renderAll() { renderTiles(); renderBoard(); }
 
+  function mineSummary() {
+    const cl = data.sessions.filter(s => s.vendor === 'claude');
+    return { claudeSessions: cl.length, withSubs: cl.filter(s => s.subagents > 0).length, totalSubs: cl.reduce((a, s) => a + (s.subagents || 0), 0) };
+  }
+
+  function setTab(t) {
+    document.querySelectorAll('[role="tab"]').forEach(b => { const on = b.dataset.tab === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+    $('pane-mine').hidden = t !== 'mine'; $('pane-pub').hidden = t !== 'pub';
+    if (t === 'pub' && data) window.Swarms.open($('pane-pub'), mineSummary());
+  }
+
   function show() {
+    setTab('mine');
     $('lock').hidden = true; $('app').hidden = false; $('err').textContent = '';
     $('gen').textContent = 'Snapshot taken ' + new Date(data.generated).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     $('foot').textContent = data.note || '';
@@ -133,9 +145,16 @@
 
   function lock() {
     data = null; openId = null; $('app').hidden = true; $('lock').hidden = false; $('pw').value = ''; $('err').textContent = '';
-    $('board').innerHTML = $('tiles').innerHTML = '';
+    $('board').innerHTML = $('tiles').innerHTML = $('pane-pub').innerHTML = '';
     $('pw').focus();
   }
+
+  window.Swarms.bind($('pane-pub'));
+  $('app').querySelector('[role="tablist"]').addEventListener('click', e => { const b = e.target.closest('[role="tab"]'); if (b) setTab(b.dataset.tab); });
+  $('app').querySelector('[role="tablist"]').addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const next = e.target.dataset.tab === 'mine' ? 'pub' : 'mine'; setTab(next); $('tab-' + next).focus();
+  });
 
   $('f').addEventListener('submit', async e => {
     e.preventDefault();

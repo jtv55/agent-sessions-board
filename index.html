@@ -33,6 +33,12 @@
     <button id="lockbtn" type="button">Lock</button>
   </header>
 
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button type="button" role="tab" id="tab-mine" data-tab="mine" aria-selected="true" aria-controls="pane-mine">My sessions</button>
+    <button type="button" role="tab" id="tab-pub" data-tab="pub" aria-selected="false" aria-controls="pane-pub" tabindex="-1">Public swarms</button>
+  </div>
+
+  <div id="pane-mine" role="tabpanel" aria-labelledby="tab-mine">
   <section class="tiles" id="tiles" aria-label="Totals"></section>
 
   <section aria-labelledby="bh">
@@ -60,7 +66,11 @@
   </details>
 
   <p class="note" id="foot"></p>
+  </div>
+
+  <div id="pane-pub" role="tabpanel" aria-labelledby="tab-pub" hidden></div>
 </main>
+<script src="swarms.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
