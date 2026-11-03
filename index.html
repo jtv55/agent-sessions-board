@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>Agent Sessions Board</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="lock" class="lock">
+  <form id="f" autocomplete="off">
+    <h1>Agent sessions</h1>
+    <p>Enter the passphrase to unlock. The data is encrypted and decrypted in this browser only.</p>
+    <label for="pw" class="sr">Passphrase</label>
+    <input id="pw" type="password" autocomplete="current-password" spellcheck="false" placeholder="Passphrase" required>
+    <button type="submit" id="go" class="primary">Unlock</button>
+    <p id="err" class="err" role="alert"></p>
+  </form>
+</main>
+
+<main id="app" class="wrap" hidden>
+  <header class="top">
+    <div>
+      <h1>Agent sessions</h1>
+      <p class="sub" id="gen"></p>
+    </div>
+    <button id="lockbtn" type="button">Lock</button>
+  </header>
+
+  <section class="tiles" id="tiles" aria-label="Totals"></section>
+
+  <section aria-labelledby="bh">
+    <div class="head">
+      <h2 id="bh">Leaderboard</h2>
+      <div class="ctrls">
+        <div class="seg" id="seg-metric" role="group" aria-label="Rank by">
+          <button type="button" data-m="cost">Cost</button>
+          <button type="button" data-m="tokens">Tokens</button>
+        </div>
+        <div class="seg" id="seg-vendor" role="group" aria-label="Filter">
+          <button type="button" data-v="all">All</button>
+          <button type="button" data-v="claude">Claude</button>
+          <button type="button" data-v="antigravity">Antigravity</button>
+        </div>
+      </div>
+    </div>
+    <div id="board"></div>
+  </section>
+
+  <details id="pricing">
+    <summary>Estimate Antigravity cost</summary>
+    <p class="note">Antigravity records tokens but not dollars. Enter a price per million tokens for each model to rank those sessions by estimated cost. Prices stay in this browser.</p>
+    <div id="prices"></div>
+  </details>
+
+  <p class="note" id="foot"></p>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
