@@ -131,7 +131,7 @@
 
   function setTab(t) {
     document.querySelectorAll('[role="tab"]').forEach(b => { const on = b.dataset.tab === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
-    $('pane-mine').hidden = t !== 'mine'; $('pane-pub').hidden = t !== 'pub';
+    $('pane-mine').hidden = t !== 'mine'; $('pane-pub').hidden = t !== 'pub'; $('app').classList.toggle('wide', t === 'pub');
     if (t === 'pub' && data) window.Swarms.open($('pane-pub'), mineSummary());
   }
 

@@ -106,6 +106,34 @@ details#how{margin-top:24px;background:var(--panel);border:1px solid var(--line)
 details#how summary{cursor:pointer;font-weight:600}
 details#how ul{margin:8px 0;padding-left:20px;font-size:14px;color:var(--muted)}
 details#how a{color:var(--accent)}
+.wrap.wide{max-width:1160px}
+.seg2,.lenses,.scopes{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.lenses button,.scopes button{border-radius:999px;padding:6px 14px;font-size:14px;color:var(--muted)}
+.lenses button[aria-pressed="true"],.scopes button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.scopes button{font-size:13px;padding:4px 12px}
+.jump{position:sticky;top:0;z-index:5;display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:0 0 16px;background:var(--bg);border-bottom:1px solid var(--line);scrollbar-width:thin}
+.jump a{flex:none;font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 12px;background:var(--panel)}
+.jump a:hover{color:var(--text);border-color:var(--accent)}
+.swc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:0 0 20px;scroll-margin-top:56px}
+.swc header{margin-bottom:12px}
+.swc h3{margin:0 0 2px;font-size:19px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.swc h3 .n{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;font:600 13px var(--mono)}
+.swc h4{margin:16px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.swc .tiles{margin-bottom:12px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.swc .tile{background:var(--bg)}
+.swc .tile b{font-size:20px;overflow-wrap:anywhere}
+.plot{width:100%;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid2.wide{grid-template-columns:2fr 1fr}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.grid2>div,.grid4>div{min-width:0}
+.read{margin:14px 0 0;padding:10px 14px;border-left:3px solid var(--accent);background:var(--bg);border-radius:0 8px 8px 0;font-size:15px}
+.read b{font-weight:600}
+.na{color:var(--muted);font-size:14px;margin:8px 0;padding:10px 12px;border:1px dashed var(--line);border-radius:8px}
+.na-list{color:var(--muted);font-size:14px;padding-left:20px}
+.dimlist p{margin:0 0 12px}
+.dimlist b{font-weight:600}
+@media (max-width:760px){.grid2,.grid2.wide{grid-template-columns:1fr}.grid4{grid-template-columns:1fr 1fr}.swc{padding:14px}}
 @media (max-width:520px){
   .row{grid-template-columns:22px minmax(0,1fr) 70px 36px;gap:8px;padding:10px}
   .gr{width:36px;height:36px}
