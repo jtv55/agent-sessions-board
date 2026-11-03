@@ -129,6 +129,10 @@ def parse_agent(path, t0=None, main=False):
     human = corr = interrupts = compactions = api_err = commits = 0
     lines_add = lines_del = tests = tests_fail = ext = 0
     tool_out_chars = 0
+    tool_out = collections.Counter()   # tool name -> result chars
+    tool_name = {}                      # tool_use_id -> name
+    ext_ids = {}                        # tool_use_id -> (name, t) for calls that leave the sandbox
+    ext_calls = []                      # [abs t, name, result chars]
     tool_sec = 0.0
     use_ts = {}
     last_err = False
@@ -174,6 +178,8 @@ def parse_agent(path, t0=None, main=False):
                         continue
                     name, inp = c.get('name') or '?', c.get('input') or {}
                     tools[name] += 1
+                    ext0 = ext
+                    tool_name[c.get('id')] = name
                     last_assistant = name
                     b = O
                     if name in RESEARCH: b = R
@@ -190,6 +196,7 @@ def parse_agent(path, t0=None, main=False):
                     elif name.startswith('mcp__'):
                         b = O; ext += 1
                     if name in ('WebSearch', 'WebFetch'): ext += 1
+                    if ext > ext0: ext_ids[c.get('id')] = (name, t)
                     if name == 'Write' and isinstance(inp, dict):
                         lines_add += str(inp.get('content', '')).count('\n') + 1
                     elif name in ('Edit', 'MultiEdit') and isinstance(inp, dict):
@@ -213,7 +220,12 @@ def parse_agent(path, t0=None, main=False):
                             idx = pend.pop(c.get('tool_use_id'), None)
                             err = bool(c.get('is_error'))
                             body = c.get('content')
-                            tool_out_chars += len(body) if isinstance(body, str) else len(json.dumps(body)) if body else 0
+                            nchars = len(body) if isinstance(body, str) else len(json.dumps(body)) if body else 0
+                            tool_out_chars += nchars
+                            tool_out[tool_name.get(c.get('tool_use_id'), '?')] += nchars
+                            if c.get('tool_use_id') in ext_ids:
+                                en, et = ext_ids[c.get('tool_use_id')]
+                                if et is not None: ext_calls.append([et, en, nchars])
                             u = use_ts.pop(c.get('tool_use_id'), None)
                             if u is not None and t is not None and 0 <= t - u < 3600:
                                 tool_sec += t - u
@@ -269,6 +281,8 @@ def parse_agent(path, t0=None, main=False):
         'idle': round(idle), 'ooo': ooo, 'status': status, 'ramp': ramp,
         'edits': tools.get('Edit', 0) + tools.get('MultiEdit', 0), 'writes': tools.get('Write', 0), 'add': lines_add, 'del': lines_del,
         'commits': commits, 'tests': tests, 'testsFail': tests_fail, 'ext': ext, 'toolKB': round(tool_out_chars / 1024), 'toolSec': round(tool_sec),
+        'toolOut': {k: round(v / 1024, 1) for k, v in tool_out.items()},
+        'extCalls': [[round(a - ev_t0, 1), n, c] for a, n, c in sorted(ext_calls)],
         'apiErr': api_err, 'ev': ev,
     }
     if main:

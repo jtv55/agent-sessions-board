@@ -161,7 +161,7 @@
       const ks = Object.keys(days).sort();
       const ch = plot(ctx, 250, [{ type: 'bar', name: 'Runs', x: ks, y: ks.map(k => days[k].n), marker: { color: PAL.mute }, yaxis: 'y', hovertemplate: '%{x}: %{y} runs<extra></extra>' }, { type: 'scatter', mode: 'lines+markers', name: 'Feature pass %', x: ks, y: ks.map(k => 100 * days[k].p / (2 * days[k].n)), line: { color: PAL.good, width: 3 }, yaxis: 'y2', hovertemplate: '%{x}: %{y:.0f}% pass<extra></extra>' }],
         L({ showlegend: true, legend: { y: 1.18, x: 0 }, yaxis: { title: { text: 'runs started' } }, yaxis2: { overlaying: 'y', side: 'right', title: { text: 'pass %' }, showgrid: false, rangemode: 'tozero' } }));
-      out.push(card('time', 10, 'Revenue per person over time', 'Runs and output by the day they started.', ch, `The fleet ran across ${b(ks.length)} day${ks.length === 1 ? '' : 's'}. Pass rate stays within a narrow band, so no learning or drift shows up at this horizon.`));
+      out.push(card('time', 10, 'Output per agent over time', 'There is no revenue per agent; the unit of efficacy here is features passed per agent run. Runs and output by the day they started.', ch, `The fleet ran across ${b(ks.length)} day${ks.length === 1 ? '' : 's'}. Pass rate stays within a narrow band, so no learning or drift shows up at this horizon.`));
     }
 
     // ---- 11. geo / data limits ----
@@ -171,7 +171,24 @@
         `<ul class="na-list"><li><b>Activity analysis, roles and titles, tool cost, T&amp;E, LTV/CAC, vacation, MTTR:</b> the index records per-agent totals but not individual tool calls or timestamps. These are answered in <b>Deep dives</b>, which parse full transcripts.</li><li><b>Spans and layers:</b> always flat here (pairs and singletons). Real hierarchy is in Deep dives.</li><li><b>Cost:</b> dollars are as reported in the dataset's own accounting for the self-hosted model, so use them to compare arms, not as invoices.</li></ul>`,
         ''));
     }
-    return { sections: out, ctx };
+
+    // ---- 12. flow, variability, eight wastes ----
+    {
+      const mk = (rows, nm) => ({ name: nm, items: rows.map(r => ({ s: r.s, e: r.s + Math.max(1, r.d), ok: r.passes > 0, n: r.steps != null ? r.steps : r.a[2], label: 'task ' + r.t + ' · ' + repoName(r.r) })) });
+      out.push(...window.SWW.itemFlow([mk(coop, 'Coop (2 agents)'), mk(solo, 'Solo (1 agent)')], ctx, 'task run', 'task run: one task attempted start to finish'));
+      const feats = 2 * (coop.length + solo.length), failedF = 1 - (passC + passS) / feats;
+      const coopPatches = A.filter(a => a.arm === 'coop' && a.patch > 0).length, discarded = A.filter(a => a.arm === 'coop' && a.ap === 's').length;
+      const errCost = sum(A.filter(a => a.err).map(a => a.cost)) / (sum(A.map(a => a.cost)) || 1), premium = Math.max(0, (costC - costS) / (costC || 1));
+      const rows = [['Defects', failedF, 'Features that failed their tests'], ['Overproduction', coopPatches ? discarded / coopPatches : 0, 'Finished patches never applied'], ['Inventory', errCost, 'Spend by agents that errored out before finishing'], ['Extra processing', premium, 'Extra cost of the second agent over one agent on the same task']];
+      const bar = plot(ctx, 240, [{ type: 'bar', orientation: 'h', y: rows.map(r => r[0]).reverse(), x: rows.map(r => 100 * r[1]).reverse(), marker: { color: rows.map(r => r[1] > 0.5 ? PAL.bad : r[1] > 0.2 ? PAL.b : PAL.good).reverse() }, text: rows.map(r => Math.round(100 * r[1]) + '%').reverse(), textposition: 'outside', cliponaxis: false, hovertemplate: '%{y}: %{x:.0f}%<extra></extra>' }],
+        L({ margin: { l: 130, r: 40 }, xaxis: { range: [0, 105], title: { text: 'share of the relevant base' } } }));
+      const tbl = `<div class="scroll"><table class="m wastes"><thead><tr><th>Waste</th><th>Measured as</th><th>Result</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r[0])}</td><td class="txt">${esc(r[2])}</td><td>${pct(r[1])}</td></tr>`).join('')}</tbody></table></div>`;
+      out.push(window.SWW.bcard('waste', 'The eight wastes (muda)', 'Lean manufacturing’s eight wastes. This source records totals per run, so only four can be measured; the rest (waiting, motion, transportation, non-utilised talent) need the Deep dives lens.', ['Lean manufacturing', 'The Goal'],
+        tiles([[pct(failedF), 'features failed'], [pct(coopPatches ? discarded / coopPatches : 0), 'finished patches discarded'], [pct(errCost), 'of spend on agents that errored out'], [pct(premium), 'extra cost of the second agent']]) + bar + tbl,
+        `Most of the waste is ${b(rows.slice().sort((p, r) => r[1] - p[1])[0][0])} at ${b(pct(rows.slice().sort((p, r) => r[1] - p[1])[0][1]))}. The second agent costs ${b(pct(premium))} more for a lower pass rate.`));
+      out.push(window.SWW.readingSection());
+    }
+    return { sections: window.SWW.renumber(out), ctx };
   }
 
   window.SWF = { fleetSections };
