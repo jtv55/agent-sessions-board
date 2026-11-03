@@ -6,8 +6,8 @@
   const sum = B.sum, median = B.median, merge = B.merge;
   const REAL = 0.6; // Anthropic bills roughly 60% of the proxy tokenizer's count (see the dataset card)
 
-  let corpus = null, deep = [], fleet = null, host = null, mine = null, plotlyP = null;
-  const st = { lens: 'deep', scope: null, prod: null };
+  let corpus = null, deep = [], fleet = null, mast = null, host = null, mine = null, plotlyP = null, loadP = null;
+  const st = { lens: 'deep', scope: null, prod: null, mscope: 'all' };
 
   function loadPlotly() {
     if (window.Plotly) return Promise.resolve();
@@ -67,7 +67,7 @@
   // ---------- shell ----------
   const SEC_LABEL = { mayor: 'Mayor', org: 'Org chart', spans: 'Spans & layers', levels: 'Leveling & compa', contingent: 'Contingent & geo', ras: 'Activity (RAS)', roles: 'Roles', spend: 'Cost & T&E', makebuy: 'Make vs buy', attrition: 'Attrition & OOO', ltv: 'LTV / CAC', dora: 'DORA / SPACE', pareto: 'Pareto', output: 'Output per agent',
     chain: 'Value chain', work: 'Planned vs unplanned', flow: 'Flow & WIP', variability: 'Variability', constraint: 'Constraints', waste: '8 wastes', bsjobs: 'Bullshit jobs', reading: 'Reading list',
-    headcount: 'Does a 2nd agent pay?', bonus: 'Bonuses & compa', squads: 'Squads', inflation: 'Title inflation', comms: 'Communication', time: 'Output over time', geo: 'Geo & limits' };
+    'm-headcount': 'Headcount & spans', 'm-mayor': 'Mayor', 'm-org': 'Org chart', 'm-fail': 'Failure modes', 'm-chain': 'Value chain', 'm-cost': 'Cost per run', 'm-flow': 'Flow', 'm-limits': 'Limits', headcount: 'Does a 2nd agent pay?', bonus: 'Bonuses & compa', squads: 'Squads', inflation: 'Title inflation', comms: 'Communication', time: 'Output over time', geo: 'Geo & limits' };
 
   function sessionLabel(s) { return `${s.id} · ${C.shortT(s.title, 26)} · ${s.agents.length === 1 ? '1 agent' : s.agents.length + ' agents'}`; }
 
@@ -91,10 +91,17 @@
     return { html: `<p class="sub"><b>Fleet:</b> CooperBench, a controlled experiment. The same 368 coding tasks were run by two cooperating agents and by one agent alone, 1,104 agent runs in all, so we can ask whether a second agent is worth it.</p><nav class="jump" aria-label="Sections">${jump}</nav>${res.sections.join('')}`, ctx: res.ctx };
   }
 
+  function mastLens() {
+    const res = window.SWM.sections(mast, st.mscope);
+    const chips = ['all'].concat(mast.fws).map(f => `<button type="button" data-mscope="${esc(f)}" aria-pressed="${st.mscope === f}">${esc(f === 'all' ? 'All frameworks' : f + ' (' + mast.rows.filter(r => r.f === f).length + ')')}</button>`).join('');
+    const jump = res.sections.map(x => { const id = /id="sw-([^"]+)"/.exec(x)[1]; return `<a href="#sw-${id}" data-jump="${id}">${esc(SEC_LABEL[id] || id)}</a>`; }).join('');
+    return { html: `<p class="sub"><b>Frameworks:</b> MAST, ${mast.rows.length.toLocaleString()} runs of ready-made multi-agent teams (ChatDev, MetaGPT, AG2, Magentic-One and others), each labelled for 14 ways a team can fail. These are conversation logs with named roles like CEO and Reviewer, so we can see org structure and failure, but not tool calls.</p><div class="scopes" role="group" aria-label="Framework">${chips}</div><nav class="jump" aria-label="Sections">${jump}</nav>${res.sections.join('')}`, ctx: res.ctx };
+  }
+
   function provenance() {
     const S = corpus.sources, row = k => `<li><a href="${esc(S[k].url)}" rel="noopener noreferrer" target="_blank">${esc(S[k].repo)}</a> · ${esc(S[k].license)} · rev ${esc(S[k].rev.slice(0, 7))}</li>`;
     return `<details id="how"><summary>Sources, method and caveats</summary>
-      <ul>${['wisp', 'fable', 'tc', 'coop', 'solo', 'semi'].map(row).join('')}</ul>
+      <ul>${['wisp', 'fable', 'tc', 'coop', 'solo', 'semi', 'mast'].map(row).join('')}</ul>
       <p class="note">Everything is parsed in a build script from pinned dataset revisions (<code>tools/build_public_swarms.py</code>); no message text is kept beyond a short per-agent title. Tool calls are bucketed by name and shell command, so Research, Build, Verify, Coordinate, Operate and Rework are heuristics. Roles come from brief wording; levels from model tier; cost units use a relative rate index (Haiku = 1, Sonnet = 3, Opus and Fable = 5), not invoices. Sessions are a convenience sample of what people published, so read patterns, not population rates. Platform and time-of-day are inferred from paths and timestamps; no real locations are recorded.</p></details>`;
   }
 
@@ -108,11 +115,12 @@
       ['Deep dives', link('fable'), 'Claude Code sessions recorded with the Fable 5 model, including runs where the lead agent hired helpers.', bySrc('fable'), S.fable.license],
       ['Deep dives', link('tc'), 'Agent logs donated by users to a community collection (trace-commons). Single-agent sessions.', bySrc('tc'), S.tc.license],
       ['Fleet', link('coop') + '<br>' + link('solo'), 'CooperBench, a research benchmark: the same coding tasks attempted by two agents working together, and by one agent alone. Same small open model (Qwen3.5-9B) on the team’s own GPUs.', `${fleet.coop.length} tasks, ${fleet.agents.length} agent runs`, S.coop.license],
+      ['Frameworks', link('mast'), 'MAST: logs of ready-made multi-agent teams (ChatDev, MetaGPT, AG2, Magentic-One and others) solving coding, maths and web tasks, each labelled for 14 ways a team can fail.', `${mast.rows.length.toLocaleString()} runs, 7 frameworks`, S.mast.license],
       ['Production traces', link('semi'), 'Timing and token counts from real production Claude Code sessions with helpers. No text, no tool names, so only a reduced analysis is possible.', `${corpus.prod.length} sessions, ${subsProd} helpers`, S.semi.license]];
     return `<details id="intro" class="intro" open><summary>What you are looking at</summary>
       <div class="grid3">
         <div><h3>In plain English</h3><p>These are the working logs of AI coding agents, analysed the way an analyst would study the staff of a company. Every log records each step an agent took: which tool it used, whether it failed, and how many tokens (the text an AI reads and writes, and what it is billed for) it spent. So we can ask who is really in charge, how big each team is, what the work costs, where effort is wasted, and how work flows from start to finish.</p></div>
-        <div><h3>Where it comes from</h3><p>Six public datasets on Hugging Face, each pinned to an exact version and used under its open licence. The numbers on this page are computed from them by a script in the repository (<code>tools/build_public_swarms.py</code>). Only a short title per agent is kept; no prompts or code. Right now that is <b>${deep.length}</b> sessions, <b>${A.length}</b> agents and <b>${calls.toLocaleString()}</b> tool calls in Deep dives, <b>${fleet.agents.length}</b> runs in Fleet, and <b>${corpus.prod.length}</b> production sessions.</p></div>
+        <div><h3>Where it comes from</h3><p>Seven public datasets on Hugging Face, each pinned to an exact version and used under its open licence. The numbers on this page are computed from them by a script in the repository (<code>tools/build_public_swarms.py</code>). Only a short title per agent is kept; no prompts or code. Right now that is <b>${deep.length}</b> sessions, <b>${A.length}</b> agents and <b>${calls.toLocaleString()}</b> tool calls in Deep dives, <b>${fleet.agents.length}</b> runs in Fleet, <b>${mast.rows.length.toLocaleString()}</b> framework runs, and <b>${corpus.prod.length}</b> production sessions.</p></div>
         <div><h3>How to read it</h3><p>Pick a log set below. Each card says what it measures, shows the charts, and ends with a plain-English <b>Read</b> line. The workforce words are an analogy: an <b>agent</b> is one AI worker, a <b>sub-agent</b> is a helper it launched (a contractor), a <b>swarm</b> is one agent directing several helpers, a <b>model tier</b> is the pay grade, and a <b>cost unit</b> is about one US dollar at list price. A <b>work unit</b> is a file change, a commit, a passing check or a delivered report.</p></div>
       </div>
       <div class="scroll"><table class="m wastes"><thead><tr><th>Log set</th><th>Dataset</th><th>What it is</th><th>What is used here</th><th>Licence</th></tr></thead><tbody>${rows.map(r => `<tr><td class="txt">${r[0]}</td><td class="txt">${r[1]}</td><td class="txt">${r[2]}</td><td class="txt">${esc(r[3])}</td><td class="txt">${esc(r[4])}</td></tr>`).join('')}</tbody></table></div>
@@ -122,10 +130,10 @@
   function render() {
     if (!host || !corpus) return;
     const lens = st.lens;
-    const body = lens === 'deep' ? deepLens() : lens === 'fleet' ? fleetLens() : prodLens();
+    const body = lens === 'deep' ? deepLens() : lens === 'fleet' ? fleetLens() : lens === 'mast' ? mastLens() : prodLens();
     const you = mine && mine.claudeSessions ? `<p class="note you">Your ${mine.claudeSessions} Claude sessions used ${mine.totalSubs} sub-agents in total. ${deep.filter(s => s.swarm).length} of these ${deep.length} public sessions were swarms.</p>` : '';
     const lensBtn = (id, label) => `<button type="button" data-lens="${id}" aria-pressed="${lens === id}">${esc(label)}</button>`;
-    host.innerHTML = `${intro()}${you}<div class="lenses" role="group" aria-label="Log set">${lensBtn('deep', `Deep dives (${deep.length})`)}${lensBtn('fleet', `Fleet (${fleet.agents.length} agents)`)}${lensBtn('prod', `Production traces (${corpus.prod.length})`)}</div><div id="sw-body">${body.html}</div>${provenance()}`;
+    host.innerHTML = `${intro()}${you}<div class="lenses" role="group" aria-label="Log set">${lensBtn('deep', `Deep dives (${deep.length})`)}${lensBtn('fleet', `Fleet (${fleet.agents.length} agents)`)}${lensBtn('mast', `Frameworks (${mast.rows.length.toLocaleString()} traces)`)}${lensBtn('prod', `Production traces (${corpus.prod.length})`)}</div><div id="sw-body">${body.html}</div>${provenance()}`;
     if (body.ctx) loadPlotly().then(() => body.ctx.draws.forEach(f => { try { f(); } catch (e) { console.error(e); } })).catch(() => { host.querySelector('#sw-body').insertAdjacentHTML('afterbegin', '<p class="err">Charts could not load.</p>'); });
   }
 
@@ -135,8 +143,9 @@
       el.innerHTML = '<p class="sub">Loading public logs...</p>';
       try {
         corpus = await (await fetch('public-swarms.json')).json();
-        deep = B.prepDeep(corpus.deep); fleet = B.prepFleet(corpus.fleet);
+        deep = B.prepDeep(corpus.deep); fleet = B.prepFleet(corpus.fleet); mast = window.SWM.prep(corpus.mast);
         st.scope = deep[0].id;
+        loadP = null; await ensure();
       } catch (e) { console.error(e); el.innerHTML = '<p class="err">Could not load the public logs.</p>'; return; }
     }
     render();
@@ -146,11 +155,20 @@
     el.addEventListener('click', e => {
       const l = e.target.closest('[data-lens]'); if (l) { st.lens = l.dataset.lens; render(); return; }
       const s = e.target.closest('[data-scope]'); if (s) { st.scope = s.dataset.scope; render(); return; }
+      const ms = e.target.closest('[data-mscope]'); if (ms) { st.mscope = ms.dataset.mscope; render(); return; }
       const p = e.target.closest('[data-prod]'); if (p) { st.prod = st.prod === p.dataset.prod ? null : p.dataset.prod; render(); return; }
       const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); const t = document.getElementById('sw-' + j.dataset.jump); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     });
     if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!el.hidden) render(); });
   }
 
-  window.Swarms = { open, bind };
+  async function ensure() {
+    if (!loadP) loadP = (async () => {
+      if (!corpus) { corpus = await (await fetch('public-swarms.json')).json(); deep = B.prepDeep(corpus.deep); fleet = B.prepFleet(corpus.fleet); mast = window.SWM.prep(corpus.mast); st.scope = st.scope || deep[0].id; }
+      return { corpus, deep, fleet, mast, prod: corpus.prod.map(analyzeProd) };
+    })();
+    return loadP;
+  }
+
+  window.Swarms = { open, bind, ensure, loadPlotly };
 })();

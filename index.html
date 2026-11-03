@@ -36,6 +36,7 @@
   <div class="tabs" role="tablist" aria-label="Views">
     <button type="button" role="tab" id="tab-mine" data-tab="mine" aria-selected="true" aria-controls="pane-mine">My sessions</button>
     <button type="button" role="tab" id="tab-pub" data-tab="pub" aria-selected="false" aria-controls="pane-pub" tabindex="-1">Public swarms</button>
+    <button type="button" role="tab" id="tab-bench" data-tab="bench" aria-selected="false" aria-controls="pane-bench" tabindex="-1">Swarm benchmark</button>
   </div>
 
   <div id="pane-mine" role="tabpanel" aria-labelledby="tab-mine">
@@ -69,12 +70,15 @@
   </div>
 
   <div id="pane-pub" role="tabpanel" aria-labelledby="tab-pub" hidden></div>
+  <div id="pane-bench" role="tabpanel" aria-labelledby="tab-bench" hidden></div>
 </main>
 <script src="battery.js"></script>
 <script src="charts.js"></script>
 <script src="flow.js"></script>
 <script src="fleet.js"></script>
+<script src="mast.js"></script>
 <script src="swarms.js"></script>
+<script src="bench.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

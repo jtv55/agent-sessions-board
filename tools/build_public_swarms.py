@@ -5,6 +5,7 @@ Three lenses, all from openly licensed Hugging Face datasets pinned to a revisio
          armand0e/claude-fable-5-claude-code (MIT), trace-commons/agent-traces (CC-BY-4.0).
   fleet  CooperBench: 368 two-agent coop runs and 368 matched solo runs (MIT), per-agent cost, tokens, status, patch size, test outcomes.
   prod   SemiAnalysis production Claude Code traces with sub-agent fan-out (Apache-2.0): timing and token counts only.
+  mast   MAST: 1,642 multi-agent framework traces (ChatDev, MetaGPT, AG2, Magentic-One, AppWorld, HyperAgent, OpenManus) with failure-mode labels (CC-BY-4.0).
 
 Downloads are cached in tools/.cache (or $SWARM_CACHE). No message text is stored beyond a short title per agent.
 """
@@ -21,6 +22,7 @@ REV = {
     'coop': ('CooperBench/qwen9b-coop-claude-code', '6013d5c8c6ad78498bcd9d8dd1635aa0dd97abae', 'MIT'),
     'solo': ('CooperBench/qwen9b-solo-claude-code', '7394d24338afee35bea8d65c8e2304ed52aebe37', 'MIT'),
     'semi': ('semianalysisai/cc-traces-weka-with-subagents-051926', '78b029aad10404c2ffef3329001588f3326a234b', 'Apache-2.0'),
+    'mast': ('mcemri/MAST-Data', '95118ac951421753cf1deb87ddea3b01e693c41b', 'CC-BY-4.0'),
 }
 
 
@@ -420,6 +422,77 @@ def build_prod():
     return [found[p] for p in SEMI_PICK]
 
 
+# ---------- MAST: multi-agent framework traces (text logs + failure-mode labels) ----------
+
+FM_KEYS = ['1.1', '1.2', '1.3', '1.4', '1.5', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '3.1', '3.2', '3.3']
+TS_ISO = re.compile(r'\[(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)')
+TS_CD = re.compile(r'\[(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) INFO')   # ChatDev writes year-day-month
+TS_LOG = re.compile(r'(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)')
+
+
+def span_secs(tj, rx, day_first):
+    ts = []
+    for m in rx.finditer(tj):
+        y, a, b2, h, mi, se = map(int, m.groups())
+        mo, dy = (b2, a) if day_first else (a, b2)
+        try: ts.append(datetime.datetime(y, mo, dy, h, mi, se).timestamp())
+        except ValueError: pass
+    return round(max(ts) - min(ts)) if len(ts) >= 2 else None
+
+
+def parse_mast(r):
+    fw, tj = r['mas_name'], r['trace']['trajectory']
+    if not isinstance(tj, str): tj = json.dumps(tj)
+    ann = r['mast_annotation']
+    fm = ''.join('1' if ann.get(k) else '0' for k in FM_KEYS)
+    roles, pairs, phases = collections.Counter(), collections.Counter(), []
+    dur = tok = cost = loc = ok = None
+    if fw == 'ChatDev':
+        for a, b2, ph, turn in re.findall(r'\*\*([^<*\n]+?)<->([^<*\n]+?) on : (\w+), turn (\d+)\*\*', tj):
+            a, b2 = a.strip(), b2.strip(); roles[a] += 1; roles[b2] += 1; pairs[(a, b2)] += 1
+            if not phases or phases[-1][0] != ph: phases.append([ph, 0])
+            phases[-1][1] += 1
+        dur = span_secs(tj, TS_CD, True)
+        t = re.findall(r'num_total_tokens\*\*=(\d+)', tj); c = re.findall(r'cost\*\*=\$?([\d.]+)', tj); l = re.findall(r'code_lines\*\*=(\d+)', tj)
+        tok = int(t[-1]) if t else None; cost = float(c[-1]) if c else None; loc = int(l[-1]) if l else None
+    elif fw == 'MetaGPT':
+        for a, to in re.findall(r'FROM: (\S+) TO: \{([^}]*)\}', tj):
+            roles[a] += 1
+            for b2 in re.findall(r"'([^']+)'", to): pairs[(a, b2)] += 1
+        for a in re.findall(r'NEW MESSAGES:\s*\n\s*\n(\w+):', tj): roles[a] += 1
+        dur = span_secs(tj, TS_ISO, False)
+    elif fw == 'Magentic':
+        seq = re.findall(r'-{10} (\w+) -{10}', tj)
+        for i, a in enumerate(seq):
+            roles[a] += 1
+            if i: pairs[(seq[i - 1], a)] += 1
+    elif fw == 'AG2':
+        seq = re.findall(r'^\s*name: (\S+)', tj, re.M)
+        for i, a in enumerate(seq):
+            roles[a] += 1
+            if i: pairs[(seq[i - 1], a)] += 1
+        c = re.search(r'correct: (True|False)', tj)
+        ok = None if not c else int(c.group(1) == 'True')
+    elif fw == 'AppWorld':
+        for a in re.findall(r'Response from ([\w ]+?) Agent', tj): roles[a] += 1
+        for a in re.findall(r'Message to ([\w ]+?) Agent', tj): pairs[('Supervisor', a)] += 1
+    elif fw == 'HyperAgent':
+        for a in re.findall(r'\b(Planner|Navigator|Editor|Executor)\b', tj): roles[a] += 1
+    elif fw == 'OpenManus':
+        roles['Manus'] = len(re.findall(r'agent[\w.]*:think', tj))
+        dur = span_secs(tj, TS_LOG, False)
+    return {'f': fw, 'b': r['benchmark_name'], 'm': r['llm_name'], 'ch': len(tj), 'n': sum(roles.values()), 'r': dict(roles.most_common(12)), 'fm': fm,
+            'dur': dur, 'tok': tok, 'cost': cost, 'loc': loc, 'ok': ok, 'ph': phases[:14]}, pairs
+
+
+def build_mast():
+    d = json.load(open(fetch('mast', 'MAD_full_dataset.json', 'full.json'), encoding='utf8'))
+    rows, pairs = [], collections.defaultdict(collections.Counter)
+    for r in d:
+        rec, pr = parse_mast(r); rows.append(rec); pairs[r['mas_name']].update(pr)
+    return {'keys': FM_KEYS, 'rows': rows, 'pairs': {k: [[a, b2, n] for (a, b2), n in v.most_common(40)] for k, v in pairs.items()}}
+
+
 # ---------- assemble ----------
 
 SWARMS = [('wisp', 'df04f351-9677-4723-b621-7fb5a597caba'), ('fable', '602033e7-dc55-4b7f-909f-1c67135d8f4b'), ('fable', 'f956721a-0af7-4bdc-8678-3a493d8fcd39')]
@@ -453,7 +526,7 @@ def main():
     out = {
         'v': 2, 'built': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'),
         'sources': {k: {'repo': v[0], 'rev': v[1], 'license': v[2], 'url': 'https://huggingface.co/datasets/' + v[0]} for k, v in REV.items()},
-        'deep': deep, 'fleet': build_fleet(), 'prod': build_prod(),
+        'deep': deep, 'fleet': build_fleet(), 'prod': build_prod(), 'mast': build_mast(),
     }
     p = ROOT / 'public-swarms.json'
     p.write_text(json.dumps(out, separators=(',', ':'), ensure_ascii=False), encoding='utf8')

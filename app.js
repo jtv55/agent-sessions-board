@@ -131,8 +131,9 @@
 
   function setTab(t) {
     document.querySelectorAll('[role="tab"]').forEach(b => { const on = b.dataset.tab === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
-    $('pane-mine').hidden = t !== 'mine'; $('pane-pub').hidden = t !== 'pub'; $('app').classList.toggle('wide', t === 'pub');
+    $('pane-mine').hidden = t !== 'mine'; $('pane-pub').hidden = t !== 'pub'; $('pane-bench').hidden = t !== 'bench'; $('app').classList.toggle('wide', t !== 'mine');
     if (t === 'pub' && data) window.Swarms.open($('pane-pub'), mineSummary());
+    if (t === 'bench' && data) window.Bench.open($('pane-bench'));
   }
 
   function show() {
@@ -145,15 +146,15 @@
 
   function lock() {
     data = null; openId = null; $('app').hidden = true; $('lock').hidden = false; $('pw').value = ''; $('err').textContent = '';
-    $('board').innerHTML = $('tiles').innerHTML = $('pane-pub').innerHTML = '';
+    $('board').innerHTML = $('tiles').innerHTML = $('pane-pub').innerHTML = $('pane-bench').innerHTML = '';
     $('pw').focus();
   }
 
-  window.Swarms.bind($('pane-pub'));
+  window.Swarms.bind($('pane-pub')); window.Bench.bind($('pane-bench'));
   $('app').querySelector('[role="tablist"]').addEventListener('click', e => { const b = e.target.closest('[role="tab"]'); if (b) setTab(b.dataset.tab); });
   $('app').querySelector('[role="tablist"]').addEventListener('keydown', e => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    const next = e.target.dataset.tab === 'mine' ? 'pub' : 'mine'; setTab(next); $('tab-' + next).focus();
+    const order = ['mine', 'pub', 'bench'], i = order.indexOf(e.target.dataset.tab), next = order[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3]; setTab(next); $('tab-' + next).focus();
   });
 
   $('f').addEventListener('submit', async e => {
