@@ -11,8 +11,9 @@
   // ---------- the same bucket rules as tools/build_public_swarms.py ----------
   const RESEARCH = new Set(['Read', 'Grep', 'Glob', 'LS', 'WebSearch', 'WebFetch', 'ToolSearch', 'NotebookRead']);
   const BUILD = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
-  const COORD = new Set(['Task', 'Agent', 'Workflow', 'TaskOutput', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'TaskStop', 'TodoWrite', 'Skill', 'ScheduleWakeup', 'SendMessage', 'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode', 'StructuredOutput', 'CronCreate', 'CronDelete', 'CronList', 'Monitor']);
+  const COORD = new Set(['Task', 'Agent', 'Workflow', 'TaskOutput', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'TaskStop', 'TodoWrite', 'Skill', 'ScheduleWakeup', 'SendMessage', 'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode', 'StructuredOutput', 'SubagentHandback', 'CronCreate', 'CronDelete', 'CronList', 'Monitor']);
   const SHELL = new Set(['Bash', 'PowerShell']);
+  const FINAL = new Set(['StructuredOutput', 'SubagentHandback']);   // a sub-agent's last call hands its report back and gets no result
   const TEST_RE = /\b(pytest|unittest|jest|vitest|mocha|cargo\s+(test|check|clippy)|go\s+(test|vet)|npm\s+(run\s+)?(test|lint|build)|yarn\s+(test|lint|build)|pnpm\s+(test|lint|build)|tsc|eslint|ruff|flake8|mypy|make\s+(test|check)|ctest|bun\s+test|verify|validate)\b/i;
   const RESEARCH_SH = /^(ls|cat|head|tail|grep|rg|find|pwd|echo|wc|which|stat|file|tree|df|du|ps|env|date|type|dir|get-content|get-childitem|select-string|git\s+(status|log|diff|show|branch)|sed\s+-n)\b/i;
   const COMMIT_RE = /git\s+commit/;
@@ -35,63 +36,70 @@
     if (buf) yield buf;
   }
 
-  // One transcript -> compact agent record (same shape as public-swarms.json agents).
-  async function parseFile(file, main) {
-    const turns = new Map(), events = [], pend = new Map(), tools = {}, useTs = new Map();
-    let first = null, last = null, brief = null, sid = null, sidechain = null, title = null, human = 0, corr = 0, edits = 0, writes = 0, commits = 0, tests = 0, testsFail = 0, apiErr = 0, lastErr = false, sinceErr = 99, lastAssistant = null, cwd = null, n = 0;
-    const CORR = /^\s*(no[,. !]|nope|wrong|that'?s not|not what|undo|revert|stop|don'?t|why did you|you (broke|missed|forgot)|actually|instead|i (said|meant|asked))/i;
+  // One file -> one record per agent. A normal log holds one agent; a merged swarm file holds the main agent and its sub-agents,
+  // told apart by isSidechain and agentId, so people can hand over a single file.
+  const CORR = /^\s*(no[,. !]|nope|wrong|that'?s not|not what|undo|revert|stop|don'?t|why did you|you (broke|missed|forgot)|actually|instead|i (said|meant|asked))/i;
+  const newState = () => ({ turns: new Map(), events: [], pend: new Map(), tools: {}, useTs: new Map(), first: null, last: null, brief: null, sid: null, title: null, human: 0, corr: 0, edits: 0, writes: 0, commits: 0, tests: 0, testsFail: 0, apiErr: 0, lastErr: false, sinceErr: 99, lastAssistant: null, cwd: null });
+
+  function consume(st, r, main) {
+    const t = r.timestamp ? Date.parse(r.timestamp) / 1000 : NaN;
+    if (!isNaN(t)) { st.first = st.first == null ? t : Math.min(st.first, t); st.last = st.last == null ? t : Math.max(st.last, t); }
+    if (st.sid == null && r.sessionId) st.sid = r.sessionId;
+    st.cwd = st.cwd || r.cwd;
+    if (r.type === 'custom-title' && !st.title) st.title = r.customTitle;
+    const m = r.message && typeof r.message === 'object' ? r.message : null;
+    if (r.type === 'assistant' && m) {
+      const mid = m.id || r.uuid, tr = st.turns.get(mid) || { t: isNaN(t) ? null : t, m: null, u: null }; st.turns.set(mid, tr);
+      if (m.model) tr.m = m.model;
+      if (m.usage && typeof m.usage === 'object') tr.u = m.usage;
+      if (r.isApiErrorMessage || m.model === '<synthetic>') st.apiErr++;
+      st.lastAssistant = null;
+      for (const c of m.content || []) {
+        if (!c || c.type !== 'tool_use') continue;
+        const name = c.name || '?', inp = c.input || {};
+        st.tools[name] = (st.tools[name] || 0) + 1; st.lastAssistant = name;
+        let b = O;
+        if (RESEARCH.has(name)) b = R; else if (BUILD.has(name)) b = BU; else if (COORD.has(name)) b = C;
+        else if (SHELL.has(name)) {
+          const cmd = String(inp.command || ''), firstCmd = cmd.trim().replace(/^(cd\s+\S+\s*(&&|;)\s*)+/, '');
+          if (TEST_RE.test(cmd)) b = V; else if (RESEARCH_SH.test(firstCmd)) b = R; else b = O;
+          if (COMMIT_RE.test(cmd)) st.commits++;
+        } else if (name.startsWith('mcp__')) b = O;
+        if (name === 'Edit' || name === 'MultiEdit') st.edits++; else if (name === 'Write') st.writes++;
+        const rework = st.lastErr && st.sinceErr <= 2 && b !== C;
+        st.pend.set(c.id, st.events.length); st.useTs.set(c.id, t);
+        st.events.push([isNaN(t) ? null : t, rework ? W : b, 0, b]);
+        st.sinceErr++;
+      }
+    } else if (r.type === 'user' && m) {
+      const content = m.content;
+      if (Array.isArray(content)) for (const c of content) {
+        if (c && c.type === 'tool_result') {
+          const idx = st.pend.get(c.tool_use_id); st.pend.delete(c.tool_use_id);
+          const err = !!c.is_error;
+          if (idx != null) { st.events[idx][2] = err ? 1 : 0; if (st.events[idx][3] === V) { st.tests++; if (err) st.testsFail++; } }
+          st.lastErr = err; if (err) st.sinceErr = 0;
+        }
+      }
+      const body = textOf(content), isTool = Array.isArray(content) && content.some(c => c && c.type === 'tool_result');
+      if (body && !isTool && !r.isMeta) {
+        if (st.brief == null && !body.trimStart().startsWith('<')) st.brief = body;
+        if (main && !body.trimStart().startsWith('<') && !body.startsWith('[Request interrupted')) { st.human++; if (CORR.test(body)) st.corr++; }
+      }
+    }
+  }
+
+  async function parseFile(file) {
+    const states = new Map(); let n = 0;
     for await (const ln of linesOf(file)) {
       let r; try { r = JSON.parse(ln); } catch (e) { continue; }
       if (!r || typeof r !== 'object') continue;
       if (++n % 4000 === 0) await new Promise(res => setTimeout(res, 0));
-      const t = r.timestamp ? Date.parse(r.timestamp) / 1000 : NaN;
-      if (!isNaN(t)) { first = first == null ? t : Math.min(first, t); last = last == null ? t : Math.max(last, t); }
-      if (sid == null && r.sessionId) sid = r.sessionId;
-      if (sidechain == null && typeof r.isSidechain === 'boolean') sidechain = r.isSidechain;
-      cwd = cwd || r.cwd;
-      if (r.type === 'custom-title' && !title) title = r.customTitle;
-      const m = r.message && typeof r.message === 'object' ? r.message : null;
-      if (r.type === 'assistant' && m) {
-        const mid = m.id || r.uuid, tr = turns.get(mid) || { t: isNaN(t) ? null : t, m: null, u: null }; turns.set(mid, tr);
-        if (m.model) tr.m = m.model;
-        if (m.usage && typeof m.usage === 'object') tr.u = m.usage;
-        if (r.isApiErrorMessage || m.model === '<synthetic>') apiErr++;
-        lastAssistant = null;
-        for (const c of m.content || []) {
-          if (!c || c.type !== 'tool_use') continue;
-          const name = c.name || '?', inp = c.input || {};
-          tools[name] = (tools[name] || 0) + 1; lastAssistant = name;
-          let b = O;
-          if (RESEARCH.has(name)) b = R; else if (BUILD.has(name)) b = BU; else if (COORD.has(name)) b = C;
-          else if (SHELL.has(name)) {
-            const cmd = String(inp.command || ''), firstCmd = cmd.trim().replace(/^(cd\s+\S+\s*(&&|;)\s*)+/, '');
-            if (TEST_RE.test(cmd)) b = V; else if (RESEARCH_SH.test(firstCmd)) b = R; else b = O;
-            if (COMMIT_RE.test(cmd)) commits++;
-          } else if (name.startsWith('mcp__')) b = O;
-          if (name === 'Edit' || name === 'MultiEdit') edits++; else if (name === 'Write') writes++;
-          const rework = lastErr && sinceErr <= 2 && b !== C;
-          pend.set(c.id, events.length); useTs.set(c.id, t);
-          events.push([isNaN(t) ? null : t, rework ? W : b, 0, b]);
-          sinceErr++;
-        }
-      } else if (r.type === 'user' && m) {
-        const content = m.content;
-        if (Array.isArray(content)) for (const c of content) {
-          if (c && c.type === 'tool_result') {
-            const idx = pend.get(c.tool_use_id); pend.delete(c.tool_use_id);
-            const err = !!c.is_error;
-            if (idx != null) { events[idx][2] = err ? 1 : 0; if (events[idx][3] === V) { tests++; if (err) testsFail++; } }
-            lastErr = err; if (err) sinceErr = 0;
-          }
-        }
-        const body = textOf(content), isTool = Array.isArray(content) && content.some(c => c && c.type === 'tool_result');
-        if (body && !isTool && !r.isMeta) {
-          if (brief == null && !body.trimStart().startsWith('<')) brief = body;
-          if (main && !r.isSidechain && !body.trimStart().startsWith('<') && !body.startsWith('[Request interrupted')) { human++; if (CORR.test(body)) corr++; }
-        }
-      }
+      const key = r.isSidechain === true ? 'sub:' + (r.agentId || r.sessionId || '') : 'main';
+      let st = states.get(key); if (!st) { st = newState(); states.set(key, st); }
+      consume(st, r, key === 'main');
     }
-    return { sid, sidechain: !!sidechain, first, last, brief, title, human, corr, cwd, tools, edits, writes, commits, tests, testsFail, apiErr, events, turns, pend, lastAssistant, name: file.name };
+    return [...states.entries()].filter(([, st]) => st.events.length || st.turns.size).map(([key, st]) => Object.assign(st, { sidechain: key !== 'main', name: file.name }));
   }
 
   function toAgent(p, t0, main) {
@@ -102,7 +110,7 @@
     const model = Object.entries(mods).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || null;
     let status = 'ok';
     const real = [...p.turns.values()].filter(tr => tr.m !== '<synthetic>').length;
-    if (p.apiErr && !real) status = 'dead'; else if (p.lastAssistant && p.lastAssistant !== 'StructuredOutput' && p.pend.size) status = 'cut';
+    if (p.apiErr && !real) status = 'dead'; else if (!main && p.lastAssistant && !FINAL.has(p.lastAssistant) && p.pend.size) status = 'cut';   // a live or just-ended main session always has a trailing call
     return { title: short(p.title || p.brief, 90), role: main ? 'Orchestrator' : roleOf(p.brief || p.title), model, models: mods, t0: Math.round((p.first - t0) * 10) / 10, t1: Math.round((p.last - t0) * 10) / 10, turns: p.turns.size,
       tok: [tin, tcr, tcc, tout], tools: p.tools, errs: ev.filter(e => e[2]).length, idle: Math.round(gaps.filter(g => g > 120).reduce((a, b) => a + b, 0)), ooo: [], status, ramp: 0,
       edits: p.edits, writes: p.writes, add: 0, del: 0, commits: p.commits, tests: p.tests, testsFail: p.testsFail, ext: 0, toolKB: 0, toolSec: 0, toolOut: {}, extCalls: [], apiErr: p.apiErr, ev };
@@ -230,8 +238,7 @@
       // Biggest first would block the UI longest; parse in dropped order and cap the work at 200 files.
       for (const f of files.slice(0, 200)) {
         st.textContent = `Reading ${++done} of ${Math.min(files.length, 200)}: ${f.name.slice(0, 28)}`;
-        const isSub = /subagents|agent-/.test(f.webkitRelativePath || f.name);
-        parsed.push(await parseFile(f, !isSub));
+        parsed.push(...await parseFile(f));
       }
       const sess = assemble(parsed);
       if (!sess.length) { st.textContent = 'These logs have too few tool calls to grade (need at least 5). Try a longer session.'; return; }
@@ -274,7 +281,7 @@
         <p class="lead">Drop your Claude Code logs. Get a letter grade, a rank among ${api.count()} public agent teams, and a card to flex. Parsed in this tab: open your network panel and watch nothing leave.</p>
         <div id="drop" class="drop" tabindex="0" role="button" aria-label="Drop session logs here or press Enter to choose a folder"><b>Drop a folder or .jsonl files here</b><span>or press Enter to choose</span></div>
         <div class="hero-btns"><button type="button" data-g="folder">Choose folder</button><button type="button" data-g="files">Choose files</button><button type="button" data-g="demo">Try a sample swarm</button></div>
-        <details class="phone" id="gr-phone"><summary>On your phone? Get the log from Claude</summary><p class="sub">Phones can't pick folders, but you can ask your Claude Code session to hand you the files. Paste this into the session, save what it sends to Files, then tap <b>Choose files</b> and select them all (the main log plus any sub-agent logs).</p><pre class="prompt" id="gr-prompt">Find this session's log: the newest .jsonl file for this project in ~/.claude/projects/, plus any sub-agent logs in the subagents folder beside it. Copy them into one folder, rename each .jsonl to .json, and send them to me as downloadable files.</pre><button type="button" data-copy="__PROMPT__">Copy prompt</button></details>
+        <details class="phone" id="gr-phone"><summary>On your phone? Get the log from Claude</summary><p class="sub">Phones can't pick folders, but you can ask your Claude Code session to hand you one file. Paste this into the session, save what it sends to Files, then tap <b>Choose files</b> and pick it. Sub-agents are included, so a swarm still counts.</p><pre class="prompt" id="gr-prompt">Find this session's log: the newest .jsonl file for this project in ~/.claude/projects/. Merge it and every sub-agent log in the subagents folder beside it into ONE file by concatenating them, name it swarm-session.json, and send it to me as a downloadable file.</pre><button type="button" data-copy="__PROMPT__">Copy prompt</button></details>
         <input id="gr-fi" type="file" accept=".jsonl,.json" multiple hidden><input id="gr-fo" type="file" webkitdirectory hidden>
         <p class="sub" id="gr-status" role="status">Where are my logs? Claude Code writes them to <code>~/.claude/projects/</code> (on Windows <code>%USERPROFILE%\\.claude\\projects</code>). Sub-agent transcripts live in a <code>subagents</code> folder beside each session.</p>
         <p class="sub">No sub-agents in the logs? You get an N/A: you didn’t even swarm. Single agents are only on the table as the control group.</p>

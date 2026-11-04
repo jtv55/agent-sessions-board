@@ -57,7 +57,7 @@ R, B, V, C, O, W = 0, 1, 2, 3, 4, 5   # research, build, verify, coordinate, ope
 RESEARCH = {'Read', 'Grep', 'Glob', 'LS', 'WebSearch', 'WebFetch', 'ToolSearch', 'NotebookRead'}
 BUILD = {'Edit', 'Write', 'NotebookEdit', 'MultiEdit'}
 COORD = {'Task', 'Agent', 'Workflow', 'TaskOutput', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'TaskStop', 'TodoWrite', 'Skill',
-         'ScheduleWakeup', 'SendMessage', 'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode', 'StructuredOutput', 'CronCreate', 'CronDelete', 'CronList', 'Monitor'}
+         'ScheduleWakeup', 'SendMessage', 'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode', 'StructuredOutput', 'SubagentHandback', 'CronCreate', 'CronDelete', 'CronList', 'Monitor'}
 SHELL = {'Bash', 'PowerShell'}
 TEST_RE = re.compile(r'\b(pytest|unittest|jest|vitest|mocha|cargo\s+(test|check|clippy)|go\s+(test|vet)|npm\s+(run\s+)?(test|lint|build)|yarn\s+(test|lint|build)|pnpm\s+(test|lint|build)|tsc|eslint|ruff|flake8|mypy|make\s+(test|check)|ctest|bun\s+test|verify|validate)\b', re.I)
 RESEARCH_SH = re.compile(r'^(ls|cat|head|tail|grep|rg|find|pwd|echo|wc|which|stat|file|tree|df|du|ps|env|date|type|dir|get-content|get-childitem|select-string|git\s+(status|log|diff|show|branch)|sed\s+-n)\b', re.I)
@@ -276,7 +276,7 @@ def parse_agent(path, t0=None, main=False):
     ooo = [[round(ev[i][0]), round(g)] for i, g in enumerate(gaps) if g > 900][:12]
     status = 'ok'
     if api_err and not turns.keys() - {k for k, v in turns.items() if v['m'] == '<synthetic>'}: status = 'dead'
-    elif last_assistant and last_assistant != 'StructuredOutput' and pend: status = 'cut'
+    elif last_assistant and last_assistant not in ('StructuredOutput', 'SubagentHandback') and pend: status = 'cut'
     model = mods.most_common(1)[0][0] if mods else None
     out = {
         'title': short(title or brief or '', 90), 'role': 'Orchestrator' if main else role_of(brief or title or ''), 'model': model, 'models': dict(mods),

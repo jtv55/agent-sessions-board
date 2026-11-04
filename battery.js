@@ -38,7 +38,7 @@
     Object.entries(a.models || {}).forEach(([m, n]) => { const l = tierOf(m); mix[l] = (mix[l] || 0) + n / turnsTotal; });
     if (!Object.keys(mix).length) mix[lvl] = 1;
     // A work unit is a file change, a commit, a passing check, or a sub-agent's delivered report.
-    const work = a.edits + a.writes + a.commits + Math.max(0, a.tests - a.testsFail) + (a.layer > 0 && a.status === 'ok' && a.calls > 0 ? 1 : 0);
+    const work = a.edits + a.writes + a.commits + Math.max(0, a.tests - a.testsFail) + (a.layer > 0 && a.status === 'ok' && calls > 0 ? 1 : 0);
     const cx = 2 * (a.edits + a.writes) + 2 * a.commits + ras[2] + 0.5 * (ras[0] + ras[4]) + 0.5 * ras[5];
     // On a hosted API the cheapest rung is Haiku (L2); L1 only exists for self-hosted small models.
     const implied = Math.max(s.hosting === 'api' ? 2 : 1, cx < 4 ? 1 : cx < 12 ? 2 : cx < 40 ? 3 : cx < 120 ? 4 : 5);
