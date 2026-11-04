@@ -125,6 +125,12 @@
     return `<div class="swc"><header><h3>Dataset report cards</h3><p class="sub">Publishing agent traces on Hugging Face? Every public dataset in this benchmark has a median grade. Paste the badge into the dataset card so people see how your swarms score.</p></header><div class="scroll"><table class="m bench"><thead><tr><th>Dataset</th><th>Grade</th><th>Median</th><th>README badge</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
 
+  function podium(rk) {
+    const top = rk.filter(e => !e.you && !e.chal).slice(0, 3); if (top.length < 3 || filt === 'single') return '';
+    const order = [top[1], top[0], top[2]], place = { 0: 2, 1: 1, 2: 3 };
+    return `<div class="podium" aria-label="Top three">${order.map((e, i) => `<div class="pod p${place[i]}" data-ent="${esc(e.id)}"><i class="medal">${place[i]}</i><span class="pg" style="color:${GCOL[grade(e.score)]}">${grade(e.score)}</span><b>${esc(dname(e))}</b><span class="ps">${Math.round(e.score)}/100</span><span class="sub">${esc(TYPES[tk(e)])} · ${esc(e.nLabel)}</span></div>`).join('')}</div>`;
+  }
+
   function naCard(nas) {
     if (!nas.length) return '';
     const by = {}; nas.forEach(e => { (by[e.owner] = by[e.owner] || []).push(e); });
@@ -178,7 +184,7 @@
     const top = rk[0], bot = rk[rk.length - 1];
     const fr = rk.find(e => e.id === 'fcall'), fs = rk.find(e => e.id === 'fsolo');
     const read = rk.length ? `${b(dname(top))} ranks first with a ${b(grade(top.score) + ' (' + Math.round(top.score) + ')')}; ${b(dname(bot))} is last with ${b(grade(bot.score) + ' (' + Math.round(bot.score) + ')')}. ${swarms.length && singles.length ? `The median multi-agent team scores ${b(Math.round(median(swarms.map(e => e.score))))} against ${b(Math.round(median(singles.map(e => e.score))))} for single agents.` : ''} ${fr && fs ? `On identical tasks, two cooperating agents score ${b(Math.round(fr.score))} against ${b(Math.round(fs.score))} for one agent.` : ''}` : '';
-    el.innerHTML = `<div class="swc"><header><h3>Leaderboard</h3><p class="sub">${rk.length} ${byUser ? 'users' : 'runs'} ranked, ${un.length} without enough measurable dimensions. Click a row to see its profile. ${YOU ? 'Your run is highlighted.' : 'Drop your logs above to add yours.'}</p></header>
+    el.innerHTML = `${podium(rk)}<div class="swc"><header><h3>Leaderboard</h3><p class="sub">${rk.length} ${byUser ? 'users' : 'runs'} ranked, ${un.length} without enough measurable dimensions. Click a row to see its profile. ${YOU ? 'Your run is highlighted.' : 'Drop your logs above to add yours.'}</p></header>
       <div class="scroll"><table class="m bench"><thead><tr><th>#</th><th>User</th><th>Grade</th><th>Score</th>${DIMS.map(d => `<th title="${esc(d[2])}">${d[1]}</th>`).join('')}<th title="Share of the weighted score that could be measured; missing share pulls the score toward 50">Coverage</th></tr></thead><tbody>${rows || '<tr><td colspan="10">Nothing to rank under this filter.</td></tr>'}</tbody></table></div>
       ${read ? `<p class="read">${read}</p>` : ''}</div>
       <div class="swc"><header><h3>Composite score</h3><p class="sub">Dotted lines mark grade boundaries (35, 50, 65, 80). Colour is the kind of swarm.</p></header>${bar}</div>
@@ -191,7 +197,7 @@
   function shell() {
     const chip = (v, t) => `<button type="button" data-bf="${v}" aria-pressed="${filt === v}">${esc(t)}</button>`;
     const sliders = DIMS.map(([k, n, d]) => `<label class="slider"><span><b>${n}</b> <i id="bw-${k}">${weights[k]}</i></span><input type="range" min="0" max="100" step="5" value="${weights[k]}" data-w="${k}" aria-label="${esc(n)} weight"><span class="sub">${esc(d)}</span></label>`).join('');
-    host.querySelector('#bn-main').innerHTML = `${CHAL ? challengeBanner() : ''}<details id="intro" class="intro"><summary>What this ranks and how the score works</summary><div class="grid3">
+    host.querySelector('#bn-main').innerHTML = `<span id="bn-top"></span>${CHAL ? challengeBanner() : ''}<details id="intro" class="intro"><summary>What this ranks and how the score works</summary><div class="grid3">
       <div><h3>In plain English</h3><p>Every public swarm in the Public swarms tab gets one score from 0 to 100 and a letter grade, so they can be ranked against each other. A swarm is any team of AI agents working one task: a lead agent with helpers, a pair, or a ready-made framework with a CEO and a tester.</p></div>
       <div><h3>How the score works</h3><p>Five dimensions, each scored 0 to 100 from the logs: <b>Outcome</b>, <b>Reliability</b>, <b>Efficiency</b>, <b>Flow</b> and <b>Coordination</b>. The score is their weighted average. If a source cannot measure a dimension (a text-only log has no cost, say), it is left out and the weights of the others are rescaled. Swarms with under half of the weight measurable are listed but not ranked, and a score built from fewer dimensions is pulled toward 50 in proportion to what is missing, so thinly measured swarms cannot top the table on proxies alone.</p></div>
       <div><h3>Grades</h3><p><b>A</b> 80 and up, <b>B</b> 65 to 79, <b>C</b> 50 to 64, <b>D</b> 35 to 49, <b>F</b> under 35. Move the sliders to decide what matters: the leaderboard re-ranks instantly. Scores compare swarms inside this sample; they are not a grade against the whole world.</p></div></div>
@@ -233,7 +239,8 @@
   }
 
   function apiObj() {
-    return { DIMS, GCOL, grade, place, count: () => bestPerOwner(E.map(x => Object.assign(composite(x), { owner: ownerOf(x) })).filter(x => x.cov >= 0.5 && x.score != null)).length,
+    const statsFn = () => { const a = D.deep.flatMap(s => s.agents); return [[(D.mast.rows.length + D.fleet.agents.length + D.corpus.pool.rows.length).toLocaleString(), 'agent runs scored'], [String(D.deep.length), 'Claude Code sessions'], [sum(a.map(x => x.calls)).toLocaleString(), 'tool calls read'], [String(Object.keys(D.corpus.sources).length), 'open datasets']]; };
+    return { stats: statsFn, owner: e => disp(Object.assign({}, e, { owner: ownerOf(e) })), DIMS, GCOL, grade, place, count: () => bestPerOwner(E.map(x => Object.assign(composite(x), { owner: ownerOf(x) })).filter(x => x.cov >= 0.5 && x.score != null)).length,
       you: s => Object.assign(deepEntrant(s), { you: true, id: 'you' }), setYou: e => { YOU = e; if (e) sel = 'you'; }, setHandle: () => paint(), repaint: paint, refreshCommunity,
       demoEntrant: () => { const r = E.map(e => Object.assign({}, e, composite(e))).filter(e => e.type === 'swarm' && e.cov >= 0.5).sort((p, q) => q.score - p.score)[0]; return r ? Object.assign({}, r) : null; } };
   }

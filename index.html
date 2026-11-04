@@ -13,16 +13,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 <main id="app" class="wrap wide">
   <header class="top">
-    <div>
-      <h1>Do you even swarm?</h1>
-      <p class="sub">The public benchmark for AI agent teams. Free to grade. Your logs never leave your browser.</p>
-    </div>
-    <nav class="topnav" aria-label="Site"><a class="btn" href="#pro" data-go="pro">Swarm Pro</a></nav>
+    <a class="brand" href="./" aria-label="Do you even swarm? home"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><g fill="currentColor"><circle cx="16" cy="6" r="3.2"/><circle cx="7" cy="12" r="2.6" opacity=".8"/><circle cx="25" cy="12" r="2.6" opacity=".8"/><circle cx="16" cy="17" r="3.6"/><circle cx="8" cy="24" r="2.2" opacity=".6"/><circle cx="24" cy="24" r="2.2" opacity=".6"/><circle cx="16" cy="27" r="1.8" opacity=".5"/></g><g stroke="currentColor" stroke-width="1.2" opacity=".5" fill="none"><path d="M16 9v5M10 13l4 3M22 13l-4 3M10 22l4-4M22 22l-4-4"/></g></svg><span>Do you even swarm?</span></a>
+    <nav class="topnav" aria-label="Site"><a href="#pro" data-go="pro" id="nav-pro" hidden>Swarm Pro</a><a class="btn" href="#bn-top" data-go="bench">Leaderboard</a></nav>
   </header>
 
   <div class="tabs" role="tablist" aria-label="Views">
@@ -34,23 +31,23 @@
   <div id="pane-pub" role="tabpanel" aria-labelledby="tab-pub" hidden></div>
 
   <footer class="foot" id="pro">
-    <div class="grid3">
-      <div><h3>Free, forever</h3><p>Grade any session, see your rank, download the card, send a challenge link. Runs in your browser.</p></div>
-      <div><h3>Swarm Pro</h3><p>Private runs that stay off the public board, history and trend lines, a weekly review by email or Slack, and a team board for your org.</p><p><a id="pro-cta" class="btn primary" href="#">Upgrade with Stripe</a></p></div>
-      <div><h3>Privacy</h3><p>Logs are parsed locally and never uploaded. Only the five scores you choose to submit leave your device. The public data is from open Hugging Face datasets, pinned to a revision.</p></div>
+    <div class="plans">
+      <div class="plan"><h3>Free</h3><p class="price">$0</p><ul><li>Grade any session in your browser</li><li>Rank against every public swarm</li><li>Share card, challenge link, README badge</li></ul></div>
+      <div class="plan pro"><h3>Swarm Pro</h3><p class="price" id="pro-price">Coming soon</p><ul><li>Private runs, off the public board</li><li>History and trend lines</li><li>Weekly review by email or Slack</li><li>Team board for your org</li></ul><a id="pro-cta" class="btn primary" href="#">Upgrade</a></div>
+      <div class="plan"><h3>Privacy</h3><p class="price">0 bytes</p><ul><li>Logs are parsed in this tab and never uploaded</li><li>Only the five scores you choose to submit leave your device</li><li>Public data: open Hugging Face datasets, pinned to a revision</li></ul></div>
     </div>
-    <p class="sub">Built from public logs under their open licences: see the Public swarm deep dives tab for every source.</p>
+    <p class="sub">Do you even swarm? is an independent benchmark built from public logs under their open licences. See Public swarm deep dives for every source.</p>
   </footer>
 </main>
-<script src="config.js"></script>
-<script src="battery.js"></script>
-<script src="charts.js"></script>
-<script src="flow.js"></script>
-<script src="fleet.js"></script>
-<script src="mast.js"></script>
-<script src="swarms.js"></script>
-<script src="grade.js"></script>
-<script src="bench.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=13"></script>
+<script src="battery.js?v=13"></script>
+<script src="charts.js?v=13"></script>
+<script src="flow.js?v=13"></script>
+<script src="fleet.js?v=13"></script>
+<script src="mast.js?v=13"></script>
+<script src="swarms.js?v=13"></script>
+<script src="grade.js?v=13"></script>
+<script src="bench.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

@@ -205,7 +205,7 @@
         : `<h3>Claim your spot on the leaderboard</h3><p class="sub">Pick a handle to put this run on the board and track your climb. We store scores only, never your logs.</p>
         <form id="gr-claim" autocomplete="off"><input name="handle" placeholder="handle (3-20 letters, numbers, _)" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required aria-label="Handle"><input name="email" type="email" placeholder="email (optional, for the weekly review)" aria-label="Email"><button class="primary" type="submit">Claim my rank</button></form>`}</div>`}
       <div class="card pro"><h3>Swarm Pro</h3><p class="sub">Private runs that stay off the public board, history and trend lines, a weekly workforce review by email or Slack, and a team board for your org. Free stays free: grading, ranking and sharing.</p>
-        <a class="btn primary" ${pro ? `href="${esc(pro)}" target="_blank" rel="noopener noreferrer"` : 'aria-disabled="true" href="#"'}>${pro ? 'Upgrade with Stripe · ' + esc(cfg.PRICE || '') : 'Stripe link not configured'}</a></div>
+        <a class="btn primary" ${pro ? `href="${esc(pro)}" target="_blank" rel="noopener noreferrer"` : 'aria-disabled="true" href="#"'}>${pro ? 'Upgrade with Stripe · ' + esc(cfg.PRICE || '') : 'Coming soon'}</a></div>
       <p class="sub">Next: <b>run a second swarm</b> with a verifier agent and watch the Reliability bar move. Your rank updates the moment you drop new logs.</p>
     </div>`;
   }
@@ -248,7 +248,7 @@
   function tryDemo() {
     const pickE = api.demoEntrant(); if (!pickE) return;
     demo = true; results = [{ ent: Object.assign({}, pickE, { name: 'Sample: ' + pickE.name }) }]; pick = 0;
-    api.setYou(null); $(host, '#gr-status').textContent = 'Showing a public swarm as a sample. Drop your own logs to replace it.';
+    api.setYou(null); $(host, '#gr-status').textContent = 'Showing a public swarm as a sample. Drop your own logs to replace it.'; me && 0;
     paintResult();
   }
 
@@ -268,16 +268,18 @@
     const cfg = CFG();
     host.innerHTML = `<section class="hero" aria-labelledby="gh">
       <div class="hero-l">
-        <p class="kicker">Free · about 60 seconds · nothing is uploaded</p>
-        <h2 id="gh" class="hero-h">Grade your agent team.</h2>
-        <p class="lead">Drop your Claude Code session logs. You get a letter grade, your rank among ${api.count()} public swarms, and a card to show off. Parsing happens in this tab: open your network panel and watch nothing leave.</p>
+        <p class="kicker"><i class="dot"></i> Free · 60 seconds · nothing is uploaded</p>
+        <h1 id="gh" class="hero-h">Do you even <em>swarm</em>?</h1>
+        <p class="lead">Drop your Claude Code logs. Get a letter grade, a rank among ${api.count()} public agent teams, and a card to flex. Parsed in this tab: open your network panel and watch nothing leave.</p>
         <div id="drop" class="drop" tabindex="0" role="button" aria-label="Drop session logs here or press Enter to choose a folder"><b>Drop a folder or .jsonl files here</b><span>or press Enter to choose</span></div>
         <div class="hero-btns"><button type="button" data-g="folder">Choose folder</button><button type="button" data-g="files">Choose files</button><button type="button" data-g="demo">Try a sample swarm</button></div>
         <input id="gr-fi" type="file" accept=".jsonl,.json" multiple hidden><input id="gr-fo" type="file" webkitdirectory hidden>
         <p class="sub" id="gr-status" role="status">Where are my logs? Claude Code writes them to <code>~/.claude/projects/</code> (on Windows <code>%USERPROFILE%\\.claude\\projects</code>). Sub-agent transcripts live in a <code>subagents</code> folder beside each session.</p>
         <p class="sub">No sub-agents in the logs? You get an N/A: you didn’t even swarm. Single agents are only on the table as the control group.</p>
       </div>
-      <div class="hero-r" id="gr-result"></div></section>`;
+      <div class="hero-r" id="gr-result"></div></section>
+      <section class="proof" aria-label="What the benchmark is built from">${api.stats().map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('')}</section>
+      <ol class="steps3"><li><b>Drop</b><span>A folder or a .jsonl. Parsed locally, never uploaded.</span></li><li><b>Get graded</b><span>Five dimensions, A to F, ranked against every public swarm. No sub-agents? N/A.</span></li><li><b>Flex or fix</b><span>Download the card, send a challenge link, paste a README badge.</span></li></ol>`;
     const drop = $(host, '#drop');
     ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
@@ -311,7 +313,15 @@
       me = { handle, email: email || null, token: (crypto.getRandomValues(new Uint32Array(4)).join('-')), synced: false }; store.set('swarm.me', me);
       api.setHandle(handle); paintResult(); submit();
     });
-    if (results.length) paintResult();
+    if (results.length) paintResult(); else previewSample();
+  }
+
+  // Before anyone drops anything, show what they will get: the card of the top public swarm.
+  function previewSample() {
+    const e = api.demoEntrant(), box = $(host, '#gr-result'); if (!e || !box) return;
+    const d = view({ ent: e }); d.handle = api.owner(e).replace(/^@/, '');
+    box.innerHTML = `<div class="res"><div class="res-top"><canvas id="gr-card" width="1200" height="630" aria-label="Sample share card"></canvas></div><p class="sub sample">Sample: the top public swarm, ${esc(api.owner(e))}. Yours could be right here.</p></div>`;
+    drawCard($(box, '#gr-card'), d);
   }
 
   window.Grade = { mount, parseFile, assemble, challenge, unb64u, b64u, me: () => me };

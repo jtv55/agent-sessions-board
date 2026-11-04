@@ -17,12 +17,12 @@
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     const next = ORDER[(ORDER.indexOf(e.target.dataset.tab) + 1) % ORDER.length]; setTab(next); $('tab-' + next).focus();
   });
-  document.querySelector('[data-go="pro"]').addEventListener('click', e => { e.preventDefault(); $('pro').scrollIntoView({ behavior: 'smooth' }); });
+  document.querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); if (a.dataset.go === 'pro') $('pro').scrollIntoView({ behavior: 'smooth' }); else { setTab('bench'); const t = $('bn-top') || $('pane-bench'); t.scrollIntoView({ behavior: 'smooth' }); } }));
 
   // Stripe Payment Link from config.js; stays disabled until one is set.
   const cfg = window.SWARM_CONFIG || {}, cta = $('pro-cta');
-  if (cfg.STRIPE_LINK) { cta.href = cfg.STRIPE_LINK; cta.target = '_blank'; cta.rel = 'noopener noreferrer'; cta.textContent = 'Upgrade with Stripe' + (cfg.PRICE ? ' · ' + cfg.PRICE : ''); }
-  else { cta.setAttribute('aria-disabled', 'true'); cta.textContent = 'Pro opens soon'; }
+  if (cfg.STRIPE_LINK) { cta.href = cfg.STRIPE_LINK; cta.target = '_blank'; cta.rel = 'noopener noreferrer'; cta.textContent = 'Upgrade with Stripe'; $('pro-price').textContent = cfg.PRICE || ''; $('nav-pro').hidden = false; }
+  else { cta.setAttribute('aria-disabled', 'true'); cta.textContent = 'Coming soon'; }
 
   setTab('bench');
 })();
