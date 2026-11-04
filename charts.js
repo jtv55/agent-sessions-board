@@ -31,9 +31,23 @@
 
   let uid = 0;
   function Ctx() { return { draws: [] }; }
+  // On phones: legends go under the plot instead of floating into it, and long left margins and tick labels shrink.
+  function fitNarrow(layout, w, data, el) {
+    if (w >= 560) return layout;
+    const o = Object.assign({}, layout), m = Object.assign({}, o.margin || {});
+    if (o.showlegend) {
+      const n = (data || []).filter(d => d.name).length || 1, rows = Math.max(1, Math.ceil(n * 100 / w)), extra = rows * 20 + 12;
+      o.legend = Object.assign({}, o.legend, { orientation: 'h', x: 0, y: 0, yref: 'container', yanchor: 'bottom', font: { size: 11 } });
+      m.b = Math.max(m.b || 44, 52) + extra; if (el) el.style.height = (el.clientHeight + extra) + 'px';
+    }
+    if (m.l > 0.4 * w) m.l = Math.round(0.4 * w);
+    o.margin = m;
+    ['xaxis', 'yaxis'].forEach(k => { if (o[k] && o[k].tickfont == null || !o[k]) o[k] = Object.assign({}, o[k], { tickfont: { size: 10 } }); });
+    return o;
+  }
   function plot(ctx, h, data, layout, cfg) {
     const id = 'swp' + (++uid);
-    ctx.draws.push(() => window.Plotly.newPlot(id, data, layout, cfg || CFG));
+    ctx.draws.push(() => { const el = document.getElementById(id); window.Plotly.newPlot(id, data, fitNarrow(layout || {}, el ? el.clientWidth : 999, data, el), cfg || CFG); });
     return `<div class="plot" id="${id}" style="height:${h}px" role="img"></div>`;
   }
   const tile = (v, l, t) => `<div class="tile"${t ? ` title="${esc(t)}"` : ''}><b>${esc(v)}</b><span>${esc(l)}</span></div>`;
