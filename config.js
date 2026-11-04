@@ -3,6 +3,6 @@
 //   STRIPE_LINK  A Stripe Payment Link for Swarm Pro. Enables the upgrade buttons.
 window.SWARM_CONFIG = {
   API: '',
-  STRIPE_LINK: '',
-  PRICE: '$19/mo',
+  STRIPE_LINK: 'https://buy.stripe.com/8x27sM2yd69440Q2T3dAk01',
+  PRICE: '$499/mo',
 };
