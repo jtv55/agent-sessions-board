@@ -206,6 +206,7 @@
         <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}">LinkedIn</a>
         <button type="button" data-copy="${esc(url)}">Copy challenge link</button>
         <button type="button" data-copy="${esc(badge)}">Copy README badge</button>
+        ${demo ? '' : '<button type="button" data-g="deep">Open the deep dive for this run</button>'}
       </div>
       <p class="sub" id="gr-msg" role="status"></p>
       ${results.length > 1 ? `<div class="scroll"><table class="m bench"><thead><tr><th>Session</th><th>Agents</th><th>Grade</th><th>Score</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table></div><p class="sub">Click a session to switch the card to it. The biggest swarm is picked by default.</p>` : ''}
@@ -243,7 +244,8 @@
       const sess = assemble(parsed);
       if (!sess.length) { st.textContent = 'These logs have too few tool calls to grade (need at least 5). Try a longer session.'; return; }
       const prepped = B.prepDeep(sess);
-      results = prepped.map(s => ({ ent: api.you(s) }));
+      window.Swarms.addMine(prepped);
+      results = prepped.map(s => ({ ent: api.you(s), sid: s.id }));
       results.sort((a, b) => b.ent.n - a.ent.n || b.ent.calls - a.ent.calls); pick = 0;
       api.setYou(results[0].ent.n > 1 ? results[0].ent : null);
       const top = results[0].ent;
@@ -313,6 +315,7 @@
             try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], text: shareText(d), url: challenge(d) }); else if (navigator.share) await navigator.share({ text: shareText(d), url: challenge(d) }); else { await navigator.clipboard.writeText(shareText(d) + ' ' + challenge(d)); msg('Post text copied. Paste it and attach the card.'); } } catch (err) { /* share cancelled */ }
           });
         } else if (k === 'submit') submit();
+        else if (k === 'deep') { window.Swarms.showMine(results[pick].sid); document.getElementById('tab-pub').click(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
         return;
       }
       const c = e.target.closest('[data-copy]'); if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); msg('Copied.'); } catch (err) { msg('Select and copy from the address bar.'); } return; }

@@ -76,17 +76,18 @@
     return C.tiles([[String(sel.length), sel.length === 1 ? 'session' : 'sessions'], [String(A.length), 'agents'], [String(A.length - sel.length), 'sub-agents'], [tok(sum(A.map(a => a.proc))), 'tokens processed'], [dur(sum(sel.map(s => s.stats.active))), 'active working time', 'Gaps over 30 minutes removed'], [String(sum(sel.map(s => s.human))), 'human prompts']]);
   }
 
-  const userOf = s => (corpus.sources[s.src] ? corpus.sources[s.src].repo.split('/')[0] : s.src);
+  let mineDeep = [];   // sessions the visitor graded in this tab; never leave the browser
+  const userOf = s => s.src === 'you' ? 'You (this device)' : (corpus.sources[s.src] ? corpus.sources[s.src].repo.split('/')[0] : s.src);
   function deepLens() {
-    const users = [...new Set(deep.map(userOf))];
+    const pool = deep.concat(mineDeep), users = [...new Set(pool.map(userOf))];
     if (st.user == null || (st.user !== 'all' && !users.includes(st.user))) st.user = deep[0] ? userOf(deep[0]) : 'all';
-    const mine = st.user === 'all' ? deep : deep.filter(s => userOf(s) === st.user);
+    const mine = st.user === 'all' ? pool : pool.filter(s => userOf(s) === st.user);
     if (st.scope !== 'all' && !mine.some(s => s.id === st.scope)) st.scope = 'all';
     const sel = st.scope === 'all' ? mine : mine.filter(s => s.id === st.scope);
     const sc = { sessions: sel, agents: sel.flatMap(s => s.agents) };
     const res = C.deepSections(sc);
-    const chips = ['all'].concat(users).map(u => `<button type="button" data-user="${esc(u)}" aria-pressed="${st.user === u}">${esc(u === 'all' ? `All users (${deep.length})` : '@' + u + ' (' + deep.filter(s => userOf(s) === u).length + ')')}</button>`).join('');
-    const pick = `<label class="sess-pick"><span>Session</span><select data-sess="1" aria-label="Choose a session">${[`<option value="all"${st.scope === 'all' ? ' selected' : ''}>${st.user === 'all' ? 'All sessions' : 'All ' + mine.length + ' session' + (mine.length === 1 ? '' : 's') + ' by @' + esc(st.user)}</option>`].concat(mine.map(x => `<option value="${esc(x.id)}"${st.scope === x.id ? ' selected' : ''}>${esc(sessionLabel(x))}</option>`)).join('')}</select></label>`;
+    const chips = ['all'].concat(users).map(u => `<button type="button" data-user="${esc(u)}" aria-pressed="${st.user === u}">${esc(u === 'all' ? `All users (${pool.length})` : (u.startsWith('You') ? u : '@' + u) + ' (' + pool.filter(s => userOf(s) === u).length + ')')}</button>`).join('');
+    const pick = `<label class="sess-pick"><span>Session</span><select data-sess="1" aria-label="Choose a session">${[`<option value="all"${st.scope === 'all' ? ' selected' : ''}>${st.user === 'all' ? 'All sessions' : 'All ' + mine.length + ' session' + (mine.length === 1 ? '' : 's') + ' by ' + (st.user.startsWith('You') ? esc(st.user) : '@' + esc(st.user))}</option>`].concat(mine.map(x => `<option value="${esc(x.id)}"${st.scope === x.id ? ' selected' : ''}>${esc(sessionLabel(x))}</option>`)).join('')}</select></label>`;
     const jump = res.sections.map(s => { const id = /id="sw-([^"]+)"/.exec(s)[1]; return `<a href="#sw-${id}" data-jump="${id}">${esc(SEC_LABEL[id] || id)}</a>`; }).join('');
     return { html: `<p class="sub"><b>Deep dives:</b> real working sessions of Claude Code, read call by call, so every question on the list can be answered. Pick a user, then narrow to one of their sessions if you like.</p><div class="scopes" role="group" aria-label="User">${chips}</div>${pick}${summaryTiles(sel)}<nav class="jump" aria-label="Sections">${jump}</nav>${res.sections.join('')}`, ctx: res.ctx };
   }
@@ -176,5 +177,8 @@
     return loadP;
   }
 
-  window.Swarms = { open, bind, ensure, loadPlotly };
+  // Add the visitor's own graded sessions to the deep dives, then jump to one of them.
+  function addMine(sessions) { mineDeep = sessions.map(s => Object.assign({}, s, { src: 'you' })); }
+  function showMine(id) { st.lens = 'deep'; st.user = 'You (this device)'; st.scope = id || 'all'; }
+  window.Swarms = { open, bind, ensure, loadPlotly, addMine, showMine };
 })();
