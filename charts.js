@@ -53,6 +53,7 @@
   }
 
   // ---------- T&E: what an agent pays to leave its sandbox ----------
+  const sizeOf = n => n < 2 ? 'lone agent' : n <= 4 ? 'fire team' : n <= 12 ? 'squad' : n <= 50 ? 'platoon' : n <= 250 ? 'company' : 'battalion';
   const TE_CATS = ['Web search', 'Web fetch', 'Browser automation', 'SaaS / MCP connector', 'Network shell'];
   const SEARCH_FEE = 0.01;   // Anthropic web search list price: $10 per 1,000 searches
   const teCat = n => n === 'WebSearch' ? TE_CATS[0] : n === 'WebFetch' ? TE_CATS[1] : /^mcp__(claude-in-chrome|playwright|puppeteer|browser)/.test(n) ? TE_CATS[2] : String(n).startsWith('mcp__') ? TE_CATS[3] : TE_CATS[4];
@@ -97,9 +98,9 @@
         [String(human), human === 1 ? 'human prompt' : 'human prompts', 'Prompts typed by a person (excluding tool results and injected context)'],
         [turns && human ? Math.round(turns / human) + ' : 1' : 'n/a', 'agent turns per human prompt'],
       ]) + plot(ctx, Math.max(230, ranked.length * 34 + 70), data, L({ barmode: 'stack', showlegend: true, margin: { l: 220 }, xaxis: { title: { text: 'influence points (stacked = share of total)' } } }));
-      const real = swarm ? `${b(lab(top.a, multi))} holds ${b(pct(top.inf))} of the influence${top.a.layer === 0 ? ', so the orchestrator is the mayor in fact as well as in name' : ', which is not the orchestrator: a sub-agent is quietly running the show'}.`
+      const real = swarm ? `${b(lab(top.a, multi))} holds ${b(pct(top.inf))} of the influence${top.a.layer === 0 ? ', so the orchestrator holds the power in fact as well as in name' : ', which is not the orchestrator: a sub-agent is quietly running the show'}.`
         : `Only one agent here, so the person is the real mayor: ${b(human)} prompts steered ${b(num(turns))} agent turns (${b(corr)} corrections, ${b(intr)} interrupts).`;
-      out.push(card('mayor', 1, 'Who is the mayor here?', 'Org-chart power: who spends the tokens, produces the work and does the coordinating.', body, real));
+      out.push(card('mayor', 1, 'Orchestrator power', 'Org-chart power: who spends the tokens, produces the work and does the coordinating.', body, real));
     }
 
     // ---- 2. org: sunburst, spans, layers, squads ----
@@ -112,7 +113,7 @@
         const m = s.agents[0]; add(sid + '/m', 'Main', sid, Math.sqrt(Math.max(1, m.calls)), PAL.level[m.lvl - 1], `${lvlName(m.lvl)} · ${m.role} · ${m.calls} calls`);
         const sq = {}; s.agents.slice(1).forEach(a => { (sq[a.squad || 'Direct'] = sq[a.squad || 'Direct'] || []).push(a); });
         Object.entries(sq).forEach(([q, arr]) => {
-          add(sid + '/' + q, q === 'Direct' ? 'Direct reports' : 'Squad ' + String(q).replace('wf_', '').slice(0, 5), sid, 0, T.line);
+          add(sid + '/' + q, q === 'Direct' ? 'Direct reports' : 'Wave ' + String(q).replace('wf_', '').slice(0, 5), sid, 0, T.line);
           arr.forEach(a => add(sid + '/' + q + '/' + a.id, 'Sub ' + a.id.slice(1) + ' ' + a.role, sid + '/' + q, Math.sqrt(Math.max(1, a.calls)), PAL.level[a.lvl - 1], `${lvlName(a.lvl)} · ${a.role} · ${a.calls} calls · ${shortT(a.title, 60)}`));
         });
       });
@@ -126,23 +127,24 @@
       const body = tiles([
         [swarm ? '2' : '1', 'layers', 'The logs record the main agent and its sub-agents; deeper nesting would not show up'],
         [String(maxSpan), 'span of control (main → sub-agents)', 'Human managers typically run 5 to 10 direct reports'],
-        [String(squads.filter(x => x.q !== '-').length || (subsAll.length ? 1 : 0)), 'squads (platoons)', 'A squad is one workflow run, or a burst of sub-agents started within 5 minutes of each other'],
-        [squads.length ? num(median(squads.map(x => x.arr.length))) : 'n/a', 'median squad size'],
+        [sizeOf(Math.max(...S.map(s => s.agents.length))), 'swarm size', 'Military scale by headcount: fire team 2 to 4, squad 5 to 12, platoon 13 to 50, company 51 to 250, battalion above'],
+        [String(squads.filter(x => x.q !== '-').length || (subsAll.length ? 1 : 0)), 'waves of helpers', 'A wave is helpers launched together: one workflow run, or a burst started within 5 minutes of each other'],
+        [squads.length ? num(median(squads.map(x => x.arr.length))) : 'n/a', 'median wave size'],
         [String(peak), 'peak agents running at once'],
         [String(mains.length), mains.length === 1 ? 'main agent' : 'main agents'],
       ]);
       let tbl = '';
       if (squads.length) {
-        tbl = `<div class="scroll"><table class="m"><thead><tr><th>Squad</th><th>Agents</th><th>Starts</th><th>Duration</th><th>Calls</th><th>Errors</th><th>Lost</th></tr></thead><tbody>${squads.slice(0, 12).map(x => {
+        tbl = `<div class="scroll"><table class="m"><thead><tr><th>Wave</th><th>Agents</th><th>Starts</th><th>Duration</th><th>Calls</th><th>Errors</th><th>Lost</th></tr></thead><tbody>${squads.slice(0, 12).map(x => {
           const t0 = Math.min(...x.arr.map(a => a.t0)), t1 = Math.max(...x.arr.map(a => a.t1));
           return `<tr><td>${esc((multi ? x.s.id + ' · ' : '') + String(x.q).replace('wf_', 'wf '))}</td><td>${x.arr.length}</td><td>+${dur(t0)}</td><td>${dur(t1 - t0)}</td><td>${sum(x.arr.map(a => a.calls))}</td><td>${sum(x.arr.map(a => a.errs))}</td><td>${x.arr.filter(a => a.status !== 'ok').length}</td></tr>`;
         }).join('')}</tbody></table></div>`;
       }
       const sun = plot(ctx, 470, [{ type: 'sunburst', ids, labels, parents, values, branchvalues: 'total', marker: { colors, line: { width: 1, color: T.panel } }, hovertext: hov, hovertemplate: '%{label}<br>%{hovertext}<extra></extra>', insidetextorientation: 'radial' }],
         L({ margin: { l: 4, r: 4, t: 4, b: 4 } }));
-      const sp = swarm ? `The main agent manages ${b(maxSpan)} sub-agents directly${maxSpan > 10 ? `, well past the 5 to 10 a person can supervise. Squads are what make that span survivable: it behaves like ${b(squads.length || 1)} team${squads.length === 1 ? '' : 's'}, not ${maxSpan} individuals` : ''}.`
-        : 'Flat: one agent, no layers, no squads. There is nothing to organise, which is also why nothing can go wrong with delegation.';
-      out.push(card('org', 2, 'Org chart: layers and squads', 'Org structure: slice size follows the square root of tool calls, so small sub-agents stay visible; colour is model level (darker = more senior).', body + sun + tbl, sp));
+      const sp = swarm ? `The main agent manages ${b(maxSpan)} sub-agents directly${maxSpan > 10 ? `, well past the 5 to 10 a person can supervise. Launching helpers in waves is what makes that span survivable: it behaves like ${b(squads.length || 1)} team${squads.length === 1 ? '' : 's'}, not ${maxSpan} individuals` : ''}.`
+        : 'Flat: one agent, no layers, no waves. There is nothing to organise, which is also why nothing can go wrong with delegation.';
+      out.push(card('org', 2, 'Swarm size and chain of command', 'Org structure: slice size follows the square root of tool calls, so small sub-agents stay visible; colour is model level (darker = more senior).', body + sun + tbl, sp));
       out.push(window.SWW.spansCard({ sessions: S, agents: A }, ctx));
     }
 
@@ -279,33 +281,33 @@
       Object.entries(cats).forEach(([c, arr]) => { tids.push(c); tlab.push(c); tpar.push('belt'); tval.push(0); tcol.push(T.line); arr.forEach(([n, v]) => { tids.push(c + '/' + n); tlab.push(n.replace(/^mcp__/, '').replace(/__/g, ' ')); tpar.push(c); tval.push(v); tcol.push(c === 'Web' || c === 'MCP connectors' ? PAL.b : PAL.a); }); });
       const tix = Object.fromEntries(tids.map((id, i) => [id, i])); for (let i = tids.length - 1; i > 0; i--) { if (tpar[i]) tval[tix[tpar[i]]] += tval[i]; }
       const belt = plot(ctx, 300, [{ type: 'treemap', ids: tids, labels: tlab, parents: tpar, values: tval, branchvalues: 'total', marker: { colors: tcol, line: { width: 1, color: T.panel } }, textinfo: 'label+value', hovertemplate: '%{label}: %{value} calls<extra></extra>' }], L({ margin: { l: 2, r: 2, t: 2, b: 2 } }));
-      // T&E: leaving the sandbox costs fees plus the context it adds
+      // External tools cost fees plus the context they add
       const te = teAnalysis(A), spend = cuT || 1;
       const catRows = TE_CATS.map(c => { const xs = te.calls.filter(x => x.cat === c); return { c, n: xs.length, fee: sum(xs.map(x => x.fee)), carry: sum(xs.map(x => x.carry)) }; });
       const catChart = te.calls.length ? plot(ctx, 250, [['Vendor fee', 'fee', PAL.bad], ['Context carried', 'carry', PAL.b]].map(([n, k, c]) => ({ type: 'bar', name: n, x: TE_CATS, y: catRows.map(r => r[k]), marker: { color: c }, hovertemplate: n + ': $%{y:.2f}<extra></extra>' })),
         L({ barmode: 'stack', showlegend: true, legend: { y: 1.18, x: 0 }, yaxis: { title: { text: 'US$ (list price)' } }, xaxis: { tickangle: -15 } })) : na('No outside calls in this scope.');
       const byA = te.byAgent.slice(0, 10);
       const agChart = byA.length ? plot(ctx, Math.max(200, byA.length * 26 + 70), [['Vendor fee', 'fee', PAL.bad], ['Context carried', 'carry', PAL.b]].map(([n, k, c]) => ({ type: 'bar', orientation: 'h', name: n, y: byA.map(r => shortT(lab(r.a, multi), 32)).reverse(), x: byA.map(r => r[k]).reverse(), marker: { color: c }, hovertemplate: n + ': $%{x:.2f}<extra></extra>' })),
-        L({ barmode: 'stack', showlegend: true, legend: { y: 1.12, x: 0 }, margin: { l: 210 }, xaxis: { title: { text: 'T&E per agent, US$' } } })) : '';
-      const ptable = `<div class="scroll"><table class="m wastes"><thead><tr><th>A person would</th><th>An agent does</th><th>Trips</th><th>Price used</th><th>Fee</th><th>Context carried</th></tr></thead><tbody>${[
-        ['Fly somewhere to meet', 'Web search', '$0.01 per search (list $10 per 1,000)'], ['Take a taxi to read a document', 'Web fetch', 'No vendor fee'], ['Rent a booth at a trade show', 'Browser automation', 'No fee; screenshots capped at 2,500 tokens'], ['Buy a SaaS seat', 'SaaS / MCP connector', 'Seat price not logged'], ['Phone or ssh a colleague', 'Network shell', 'No fee']]
-        .map(([h, c, pr]) => { const r = catRows.find(x => x.c === c); return `<tr><td class="txt">${esc(h)}</td><td class="txt">${esc(c)}</td><td>${r.n}</td><td class="txt">${esc(pr)}</td><td>${money(r.fee)}</td><td>${money(r.carry)}</td></tr>`; }).join('')}</tbody></table></div>`;
+        L({ barmode: 'stack', showlegend: true, legend: { y: 1.12, x: 0 }, margin: { l: 210 }, xaxis: { title: { text: 'Tool cost per agent, US$' } } })) : '';
+      const ptable = `<div class="scroll"><table class="m wastes"><thead><tr><th>Tool type</th><th>Calls</th><th>Price used</th><th>Fee</th><th>Context carried</th></tr></thead><tbody>${[
+        ['Web search', '$0.01 per search (list $10 per 1,000)'], ['Web fetch', 'No vendor fee'], ['Browser automation', 'No fee; screenshots capped at 2,500 tokens'], ['SaaS / MCP connector', 'Seat price not logged'], ['Network shell', 'No fee']]
+        .map(([c, pr]) => { const r = catRows.find(x => x.c === c); return `<tr><td class="txt">${esc(c)}</td><td>${r.n}</td><td class="txt">${esc(pr)}</td><td>${money(r.fee)}</td><td>${money(r.carry)}</td></tr>`; }).join('')}</tbody></table></div>`;
       const dear = te.calls.slice().sort((p, q) => q.total - p.total).slice(0, 5);
-      const dearT = dear.length ? `<h4>Five most expensive trips</h4><div class="scroll"><table class="m wastes"><thead><tr><th>Agent</th><th>Trip</th><th>Result size</th><th>Cost</th></tr></thead><tbody>${dear.map(x => `<tr><td class="txt">${esc(shortT(lab(x.a, multi), 34))}</td><td class="txt">${esc(x.cat)}</td><td>${Math.round(x.kb)} KB</td><td>${money(x.total)}</td></tr>`).join('')}</tbody></table></div>` : '';
+      const dearT = dear.length ? `<h4>Five most expensive calls</h4><div class="scroll"><table class="m wastes"><thead><tr><th>Agent</th><th>Call</th><th>Result size</th><th>Cost</th></tr></thead><tbody>${dear.map(x => `<tr><td class="txt">${esc(shortT(lab(x.a, multi), 34))}</td><td class="txt">${esc(x.cat)}</td><td>${Math.round(x.kb)} KB</td><td>${money(x.total)}</td></tr>`).join('')}</tbody></table></div>` : '';
       const unpriced = te.calls.filter(x => x.cat !== TE_CATS[0]).length;
       const body = tiles([
-        [money(te.total), 'T&E total', 'Vendor fees plus the cost of carrying each trip\'s results in context for the rest of the session'],
-        [pct(te.total / (spend + te.total)), 'of all spend is T&E', 'T&E divided by model spend plus T&E'],
-        [String(te.calls.length), 'trips out of the sandbox'], [money(te.total / per), 'T&E per agent'],
+        [money(te.total), 'external tool cost', 'Vendor fees plus the cost of carrying each trip\'s results in context for the rest of the session'],
+        [pct(te.total / (spend + te.total)), 'of all spend is external tool cost', 'External tool cost divided by model spend plus tool cost'],
+        [String(te.calls.length), 'external tool calls'], [money(te.total / per), 'tool cost per agent'],
         [money(te.fees), 'metered vendor fees', 'Only web search carries a published per-call fee'],
         [String(te.seats.length), 'SaaS seats in use' + (te.seats.length ? ' (' + te.seats.join(', ') + ')' : ''), 'Distinct MCP connectors an agent called'],
         [num(cuT / per), 'cost units per agent', '1 cost unit is about US$1 at list price: Haiku, Sonnet and Opus input are $1, $3 and $5 per million tokens, scaled for cache and output'],
         [pct(sum(A.map(a => a.tok[1] + a.tok[2])) / (sum(A.map(a => a.proc)) || 1)), 'overhead (context reloaded each turn)', 'Cache reads and writes as a share of tokens: the price of carrying context'],
-      ]) + '<h4>T&amp;E: what leaving the sandbox costs</h4>' + `<div class="grid2"><div>${catChart}</div><div>${agChart}</div></div>` + ptable
-        + `<p class="sub">Sensitivity: the ${unpriced} unpriced calls (connectors, browser, network) carry no vendor fee here. If each cost $0.05, T&amp;E would rise by ${money(unpriced * 0.05)}.</p>` + dearT
+      ]) + '<h4>What outside tools cost</h4>' + `<div class="grid2"><div>${catChart}</div><div>${agChart}</div></div>` + ptable
+        + `<p class="sub">Sensitivity: the ${unpriced} unpriced calls (connectors, browser, network) carry no vendor fee here. If each cost $0.05, tool cost would rise by ${money(unpriced * 0.05)}.</p>` + dearT
         + '<h4>Tool belt: which licences get used (calls)</h4>' + belt + '<h4>Token composition per agent</h4>' + comp + '<h4>Per-agent ledger (top 10 by tokens)</h4>' + ledger;
-      out.push(card('spend', 7, 'Tool cost, T&E and overhead per agent', 'Licence = distinct tools in use. T&E = what an agent pays to leave its sandbox: a vendor fee per search, plus the weight of whatever it brings back, which it re-reads every turn. Overhead = tokens spent re-reading context rather than thinking.', body,
-        `T&amp;E came to ${b(money(te.total))}, ${b(pct(te.total / (spend + te.total)))} of spend, from ${b(te.calls.length)} trips; ${b(money(te.fees))} was metered fees and the rest was carrying results around. Overhead is ${b(pct(sum(A.map(a => a.tok[1] + a.tok[2])) / (sum(A.map(a => a.proc)) || 1)))} of all tokens, and only ${b(num(100 * sum(A.map(a => a.tok[3])) / (sum(A.map(a => a.proc)) || 1)) + '%')} is output.`));
+      out.push(card('spend', 7, 'Tool cost per agent', 'Licence = distinct tools in use. Tool cost = what an agent pays to use outside tools: a vendor fee per search, plus the weight of whatever the tool returns, which the agent re-reads every turn. Overhead = tokens spent re-reading context rather than thinking.', body,
+        `Outside tools cost ${b(money(te.total))}, ${b(pct(te.total / (spend + te.total)))} of spend, from ${b(te.calls.length)} calls; ${b(money(te.fees))} was metered fees and the rest was carrying results around. Overhead is ${b(pct(sum(A.map(a => a.tok[1] + a.tok[2])) / (sum(A.map(a => a.proc)) || 1)))} of all tokens, and only ${b(num(100 * sum(A.map(a => a.tok[3])) / (sum(A.map(a => a.proc)) || 1)) + '%')} is output.`));
     }
 
     // ---- 8. make vs buy ----

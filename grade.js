@@ -147,7 +147,9 @@
   const TAGS = { A: ['Certified swarm.', 'It works, it holds up, and nobody is idle.'], B: ['A real team, with loose ends.', 'Most of the work lands. A few agents are coasting.'], C: ['More meeting than swarm.', 'Plenty of agents, not much of it sticks.'], D: ['Your agents are mostly standing around.', 'High spend, shaky results, lots of retries.'], F: ['Have you considered one agent?', 'Most of the spend produced nothing that held up.'] };
 
   function view(r) {
-    const e = r.ent, rk = api.place(e), g = api.grade(rk.score), t = TAGS[g];
+    const e = r.ent;
+    if (e.n <= 1) return { na: true, grade: 'N/A', score: 0, rank: 0, of: 0, pct: 0, dims: api.DIMS.map(([k, n]) => ({ k, n, v: null })), tag: 'You didn’t even swarm.', sub: 'One agent, no sub-agents. Launch helpers and try again.', agents: 1, waste: null, name: e.name, handle: me && me.handle, type: e.type };
+    const rk = api.place(e), g = api.grade(rk.score), t = TAGS[g];
     const dims = api.DIMS.map(([k, n]) => ({ k, n, v: e.s[k] }));
     const waste = e.s.efficiency != null ? Math.round(100 - e.s.efficiency) : null;
     return { grade: g, score: Math.round(rk.score), rank: rk.rank, of: rk.of, pct: rk.pct, dims, tag: t[0], sub: t[1], agents: e.n, waste, name: e.name, handle: me && me.handle, type: e.type };
@@ -155,17 +157,18 @@
 
   function drawCard(cv, d) {
     const ctx = cv.getContext('2d'), Wd = cv.width, H = cv.height;
-    const col = { A: '#34d399', B: '#7fd8a2', C: '#f0b429', D: '#f59e6b', F: '#f87171' }[d.grade];
+    const col = d.na ? '#6b7385' : { A: '#34d399', B: '#7fd8a2', C: '#f0b429', D: '#f59e6b', F: '#f87171' }[d.grade];
     const g = ctx.createLinearGradient(0, 0, Wd, H); g.addColorStop(0, '#12151c'); g.addColorStop(1, '#1d2230'); ctx.fillStyle = g; ctx.fillRect(0, 0, Wd, H);
     ctx.fillStyle = col; ctx.globalAlpha = 0.12; ctx.beginPath(); ctx.arc(250, 330, 260, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
     const F = 'IBM Plex Sans, system-ui, Segoe UI, sans-serif', M = 'IBM Plex Mono, Consolas, monospace';
     ctx.fillStyle = '#9aa3b2'; ctx.font = `600 26px ${M}`; ctx.fillText('DO YOU EVEN SWARM?', 60, 72);
-    ctx.fillStyle = col; ctx.font = `700 330px ${F}`; ctx.textAlign = 'center'; ctx.fillText(d.grade, 250, 440); ctx.textAlign = 'left';
+    ctx.fillStyle = col; ctx.font = `700 ${d.na ? 150 : 330}px ${F}`; ctx.textAlign = 'center'; ctx.fillText(d.grade, 250, d.na ? 370 : 440); ctx.textAlign = 'left';
     const fit = (t, w, size, wt) => { let z = size; do { ctx.font = `${wt} ${z}px ${F}`; z -= 2; } while (ctx.measureText(t).width > w && z > 18); };
     ctx.fillStyle = '#e8eaf0'; fit(d.tag, 640, 64, 700); ctx.fillText(d.tag, 500, 190);
     ctx.fillStyle = '#9aa3b2'; fit(d.sub, 640, 28, 400); ctx.fillText(d.sub, 500, 236);
-    ctx.fillStyle = '#e8eaf0'; ctx.font = `600 44px ${M}`; ctx.fillText(`${d.score}/100`, 500, 306);
-    ctx.fillStyle = '#9aa3b2'; ctx.font = `400 28px ${F}`; ctx.fillText(`#${d.rank} of ${d.of} public swarms · ${d.agents} agent${d.agents === 1 ? '' : 's'}`, 700, 304);
+    if (d.na) { ctx.fillStyle = '#9aa3b2'; ctx.font = `400 28px ${F}`; ctx.fillText('Not ranked: 1 agent, 0 sub-agents', 500, 306); }
+    else { ctx.fillStyle = '#e8eaf0'; ctx.font = `600 44px ${M}`; ctx.fillText(`${d.score}/100`, 500, 306);
+    ctx.fillStyle = '#9aa3b2'; ctx.font = `400 28px ${F}`; ctx.fillText(`#${d.rank} of ${d.of} public swarms · ${d.agents} agent${d.agents === 1 ? '' : 's'}`, 700, 304); }
     d.dims.forEach((x, i) => {
       const y = 350 + i * 40; ctx.fillStyle = '#9aa3b2'; ctx.font = `400 22px ${F}`; ctx.fillText(x.n, 500, y + 20);
       ctx.fillStyle = '#2a303d'; ctx.fillRect(700, y + 4, 400, 14);
@@ -176,14 +179,15 @@
     ctx.fillStyle = '#7c9cff'; ctx.font = `500 26px ${M}`; ctx.textAlign = 'right'; ctx.fillText(location.host + location.pathname.replace(/\/$/, ''), 1140, 575); ctx.textAlign = 'left';
   }
 
-  function challenge(d) { return baseUrl() + '#c=' + b64u({ h: d.handle || '', s: d.score, g: d.grade, n: d.agents, d: d.dims.map(x => x.v == null ? null : Math.round(x.v)) }); }
-  const shareText = d => `I scored ${d.grade} (${d.score}/100) on "Do you even swarm?": #${d.rank} of ${d.of} public AI agent teams. ${d.tag} Think your agents can beat that?`;
+  function challenge(d) {
+    if (d.na) return baseUrl(); return baseUrl() + '#c=' + b64u({ h: d.handle || '', s: d.score, g: d.grade, n: d.agents, d: d.dims.map(x => x.v == null ? null : Math.round(x.v)) }); }
+  const shareText = d => d.na ? 'I got an N/A on "Do you even swarm?": I didn’t even swarm. Can your agents do better?' : `I scored ${d.grade} (${d.score}/100) on "Do you even swarm?": #${d.rank} of ${d.of} public AI agent teams. ${d.tag} Think your agents can beat that?`;
 
   function resultHtml() {
     if (!results.length) return '';
     const r = results[pick], d = view(r), url = challenge(d);
-    const badge = `[![Swarm grade: ${d.grade} ${d.score}](https://img.shields.io/badge/swarm%20grade-${d.grade}%20${d.score}-${{ A: '34d399', B: '7fd8a2', C: 'f0b429', D: 'f59e6b', F: 'f87171' }[d.grade]})](${url})`;
-    const rows = results.map((x, i) => { const v = view(x); return `<tr class="${i === pick ? 'sel' : ''}" data-gpick="${i}"><td class="txt"><b>${esc(x.ent.name)}</b></td><td class="bn">${x.ent.n}</td><td><span class="grade" style="background:${api.GCOL[v.grade]}">${v.grade}</span></td><td class="bn">${v.score}</td><td class="bn">#${v.rank}</td></tr>`; }).join('');
+    const badge = `[![Swarm grade: ${d.grade} ${d.score}](https://img.shields.io/badge/swarm%20grade-${d.na ? 'N%2FA-6b7385' : d.grade + '%20' + d.score + '-' + { A: '34d399', B: '7fd8a2', C: 'f0b429', D: 'f59e6b', F: 'f87171' }[d.grade]})](${url})`;
+    const rows = results.map((x, i) => { const v = view(x); return `<tr class="${i === pick ? 'sel' : ''}" data-gpick="${i}"><td class="txt"><b>${esc(x.ent.name)}</b></td><td class="bn">${x.ent.n}</td><td><span class="grade" style="background:${v.na ? '#6b7385' : api.GCOL[v.grade]}">${v.grade}</span></td><td class="bn">${v.na ? '–' : v.score}</td><td class="bn">${v.na ? 'n/a' : '#' + v.rank}</td></tr>`; }).join('');
     const cfg = CFG(), pro = cfg.STRIPE_LINK ? cfg.STRIPE_LINK + (cfg.STRIPE_LINK.includes('?') ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(me ? me.handle : '') + (me && me.email ? '&prefilled_email=' + encodeURIComponent(me.email) : '') : '';
     return `<div class="res" id="gr-res">
       <div class="res-top"><canvas id="gr-card" width="1200" height="630" aria-label="Share card: grade ${d.grade}, ${d.score} out of 100, rank ${d.rank} of ${d.of}"></canvas></div>
@@ -197,9 +201,9 @@
       </div>
       <p class="sub" id="gr-msg" role="status"></p>
       ${results.length > 1 ? `<div class="scroll"><table class="m bench"><thead><tr><th>Session</th><th>Agents</th><th>Grade</th><th>Score</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table></div><p class="sub">Click a session to switch the card to it. The biggest swarm is picked by default.</p>` : ''}
-      <div class="claim card">${me && me.handle ? `<h3>@${esc(me.handle)} is on the board</h3><p class="sub">${me.synced ? 'Your score is live on the public leaderboard.' : (cfg.API ? 'Saved. Re-submit after your next run to move up.' : 'Saved on this device. Community submissions switch on when the board API is connected.')}</p><button type="button" data-g="submit">${cfg.API ? 'Submit this run to the public board' : 'Save this run'}</button>`
+      ${d.na ? '<div class="claim card"><h3>No swarm, no rank</h3><p class="sub">Leaderboard spots go to teams of agents. Have your main agent launch sub-agents (the Task tool) on a real task, then drop the new logs here.</p></div>' : `<div class="claim card">${me && me.handle ? `<h3>@${esc(me.handle)} is on the board</h3><p class="sub">${me.synced ? 'Your score is live on the public leaderboard.' : (cfg.API ? 'Saved. Re-submit after your next run to move up.' : 'Saved on this device. Community submissions switch on when the board API is connected.')}</p><button type="button" data-g="submit">${cfg.API ? 'Submit this run to the public board' : 'Save this run'}</button>`
         : `<h3>Claim your spot on the leaderboard</h3><p class="sub">Pick a handle to put this run on the board and track your climb. We store scores only, never your logs.</p>
-        <form id="gr-claim" autocomplete="off"><input name="handle" placeholder="handle (3-20 letters, numbers, _)" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required aria-label="Handle"><input name="email" type="email" placeholder="email (optional, for the weekly review)" aria-label="Email"><button class="primary" type="submit">Claim my rank</button></form>`}</div>
+        <form id="gr-claim" autocomplete="off"><input name="handle" placeholder="handle (3-20 letters, numbers, _)" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required aria-label="Handle"><input name="email" type="email" placeholder="email (optional, for the weekly review)" aria-label="Email"><button class="primary" type="submit">Claim my rank</button></form>`}</div>`}
       <div class="card pro"><h3>Swarm Pro</h3><p class="sub">Private runs that stay off the public board, history and trend lines, a weekly workforce review by email or Slack, and a team board for your org. Free stays free: grading, ranking and sharing.</p>
         <a class="btn primary" ${pro ? `href="${esc(pro)}" target="_blank" rel="noopener noreferrer"` : 'aria-disabled="true" href="#"'}>${pro ? 'Upgrade with Stripe · ' + esc(cfg.PRICE || '') : 'Stripe link not configured'}</a></div>
       <p class="sub">Next: <b>run a second swarm</b> with a verifier agent and watch the Reliability bar move. Your rank updates the moment you drop new logs.</p>
@@ -233,7 +237,7 @@
       const prepped = B.prepDeep(sess);
       results = prepped.map(s => ({ ent: api.you(s) }));
       results.sort((a, b) => b.ent.n - a.ent.n || b.ent.calls - a.ent.calls); pick = 0;
-      api.setYou(results[0].ent);
+      api.setYou(results[0].ent.n > 1 ? results[0].ent : null);
       st.textContent = `Graded ${results.length} session${results.length === 1 ? '' : 's'} from ${files.length} file${files.length === 1 ? '' : 's'} in your browser. Nothing was uploaded.`;
       paintResult(); api.repaint();
       const res = $(host, '#gr-res'); if (res && res.scrollIntoView) res.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -271,7 +275,7 @@
         <div class="hero-btns"><button type="button" data-g="folder">Choose folder</button><button type="button" data-g="files">Choose files</button><button type="button" data-g="demo">Try a sample swarm</button></div>
         <input id="gr-fi" type="file" accept=".jsonl,.json" multiple hidden><input id="gr-fo" type="file" webkitdirectory hidden>
         <p class="sub" id="gr-status" role="status">Where are my logs? Claude Code writes them to <code>~/.claude/projects/</code> (on Windows <code>%USERPROFILE%\\.claude\\projects</code>). Sub-agent transcripts live in a <code>subagents</code> folder beside each session.</p>
-        <p class="sub">No swarm yet? Any session gets graded as a single agent, which is a fine baseline: single agents top this table.</p>
+        <p class="sub">No sub-agents in the logs? You get an N/A: you didn’t even swarm. Single agents are only on the table as the control group.</p>
       </div>
       <div class="hero-r" id="gr-result"></div></section>`;
     const drop = $(host, '#drop');
@@ -298,7 +302,7 @@
         return;
       }
       const c = e.target.closest('[data-copy]'); if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); msg('Copied.'); } catch (err) { msg('Select and copy from the address bar.'); } return; }
-      const p = e.target.closest('[data-gpick]'); if (p) { pick = +p.dataset.gpick; api.setYou(demo ? null : results[pick].ent); paintResult(); api.repaint(); }
+      const p = e.target.closest('[data-gpick]'); if (p) { pick = +p.dataset.gpick; api.setYou(demo || results[pick].ent.n <= 1 ? null : results[pick].ent); paintResult(); api.repaint(); }
     });
     host.addEventListener('submit', e => {
       if (e.target.id !== 'gr-claim') return; e.preventDefault();

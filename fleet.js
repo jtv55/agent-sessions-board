@@ -48,7 +48,7 @@
       const a1 = coop.filter(c => c.a[0][6]).length, a2 = coop.filter(c => c.a[1][6]).length;
       const who = plot(ctx, 250, [{ type: 'bar', x: ['Heavier spender', 'Lighter spender', 'Agent 1 (feature 1)', 'Agent 2 (feature 2)'], y: [heavyPass, lightPass, a1, a2].map(v => 100 * v / coop.length), marker: { color: [PAL.bad, PAL.good, PAL.a, PAL.b] }, text: [heavyPass, lightPass, a1, a2].map(v => pct(v / coop.length)), textposition: 'outside', hovertemplate: '%{x}: %{y:.1f}% pass<extra></extra>', cliponaxis: false }], L({ margin: { t: 24 }, yaxis: { title: { text: 'feature pass rate (%)' }, rangemode: 'tozero' } }));
       const body = tiles([[pct(median(hs) / 100), 'of pair cost carried by the heavier agent (median)'], [pct(share(coop.filter(c => c.heavyShare > 0.8).length, coop.length)), 'pairs where one agent spends 80%+'], [pct(heavyPass / coop.length), 'heavier agent pass rate'], [pct(lightPass / coop.length), 'lighter agent pass rate']]) + `<div class="grid2"><div><h4>One agent carries the pair</h4>${hist}</div><div><h4>Who passes: the heavy spender or the light one?</h4>${who}</div></div>`;
-      out.push(card('mayor', 2, 'Who is the mayor here?', 'In each pair, which agent does the work. There is no formal lead, so the mayor is whoever spends.', body,
+      out.push(card('mayor', 2, 'Orchestrator power', 'In each pair, which agent does the work. There is no formal lead, so the mayor is whoever spends.', body,
         `The heavier agent carries a median ${b(pct(median(hs) / 100))} of the pair's cost, yet passes ${heavyPass > lightPass ? b('more') : b('less')} often than its partner (${b(pct(heavyPass / coop.length))} vs ${b(pct(lightPass / coop.length))}). ${heavyPass < lightPass ? 'The agent that spends the most is not the one that delivers: effort is a poor proxy for results.' : ''}`));
     }
 
@@ -96,8 +96,8 @@
         L({ barmode: 'group', showlegend: true, legend: { y: 1.08, x: 0 }, margin: { l: 90 }, xaxis: { title: { text: '% (feature pass rate; conflicts as diamonds)' }, rangemode: 'tozero' } }));
       const best = rows.slice().sort((p, q) => (q.cp - q.sp) - (p.cp - p.sp))[0];
       const mgc = coop.filter(c => c.mg === 'x').length;
-      out.push(card('squads', 5, 'Platoons and squads', 'A squad here is a pair working one repository. Which kinds of codebase suit a team, and where do the squads collide?',
-        tiles([[String(coop.length), 'squads of two'], [pct(mgc / coop.length), 'squads whose work conflicted on merge'], [String(F.repos.length), 'repositories (squad types)']]) + ch,
+      out.push(card('squads', 5, 'Pairs and conflicts', 'A pair here is two agents working one repository. Which kinds of codebase suit a team, and where do the squads collide?',
+        tiles([[String(coop.length), 'pairs of agents'], [pct(mgc / coop.length), 'pairs whose work conflicted on merge'], [String(F.repos.length), 'repositories (squad types)']]) + ch,
         `${b(pct(mgc / coop.length))} of squads produced conflicting changes. The one place teamwork helped most was ${b(best.name)} (${b(best.cp.toFixed(0) + '%')} coop vs ${b(best.sp.toFixed(0) + '%')} solo).`));
     }
 
@@ -168,7 +168,7 @@
     {
       out.push(card('geo', 11, 'Geo-strategy (COLO) and what this source cannot answer', 'Where the compute lives, and which battery items need the Deep dives lens.',
         tiles([['Self-hosted', 'compute: ' + (F.hosting || ''), 'Every run used a model served from the team\'s own GPUs (a colocation play), not a hosted API'], ['Claude Code', 'harness'], ['Qwen3.5-9B', 'model']]) +
-        `<ul class="na-list"><li><b>Activity analysis, roles and titles, tool cost, T&amp;E, LTV/CAC, vacation, MTTR:</b> the index records per-agent totals but not individual tool calls or timestamps. These are answered in <b>Deep dives</b>, which parse full transcripts.</li><li><b>Spans and layers:</b> always flat here (pairs and singletons). Real hierarchy is in Deep dives.</li><li><b>Cost:</b> dollars are as reported in the dataset's own accounting for the self-hosted model, so use them to compare arms, not as invoices.</li></ul>`,
+        `<ul class="na-list"><li><b>Activity analysis, roles and titles, tool cost, LTV/CAC, vacation, MTTR:</b> the index records per-agent totals but not individual tool calls or timestamps. These are answered in <b>Deep dives</b>, which parse full transcripts.</li><li><b>Spans and layers:</b> always flat here (pairs and singletons). Real hierarchy is in Deep dives.</li><li><b>Cost:</b> dollars are as reported in the dataset's own accounting for the self-hosted model, so use them to compare arms, not as invoices.</li></ul>`,
         ''));
     }
 

@@ -198,3 +198,5 @@ tr.chal td{background:rgba(244,114,182,.07)!important}
 .foot{margin-top:40px;border-top:1px solid var(--line);padding-top:24px}
 code{font-family:var(--mono);font-size:.9em}
 @media (max-width:860px){.hero{grid-template-columns:1fr;padding:18px}.hero-h{font-size:28px}}
+
+.lead-lite{color:var(--muted);font-size:15px;margin:0 0 14px;max-width:80ch}

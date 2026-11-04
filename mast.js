@@ -132,7 +132,7 @@
 
     // 8. limits
     out.push(bc('m-limits', 'What these logs cannot answer', 'MAST traces are conversation text, not tool-call logs.', ['Method'],
-      `<ul class="na-list"><li><b>No tool calls, cost or tokens</b> for most frameworks (only ChatDev reports them), so activity analysis (RAS), tool cost, T&amp;E and LTV/CAC need the Deep dives lens.</li><li><b>Failure labels</b> come from the dataset's LLM annotator. Treat them as a consistent yardstick, not ground truth for any single trace.</li><li><b>Roles</b> are read from speaker headers, so a framework that logs fewer speakers looks smaller than it is (AG2 logs only 30 of its 597 traces in a parseable format).</li><li><b>Success</b> is not recorded, only the absence of failure modes, so scores here measure process quality, not whether the code or answer was right.</li></ul>`, ''));
+      `<ul class="na-list"><li><b>No tool calls, cost or tokens</b> for most frameworks (only ChatDev reports them), so activity analysis (RAS), tool cost and LTV/CAC need the Deep dives lens.</li><li><b>Failure labels</b> come from the dataset's LLM annotator. Treat them as a consistent yardstick, not ground truth for any single trace.</li><li><b>Roles</b> are read from speaker headers, so a framework that logs fewer speakers looks smaller than it is (AG2 logs only 30 of its 597 traces in a parseable format).</li><li><b>Success</b> is not recorded, only the absence of failure modes, so scores here measure process quality, not whether the code or answer was right.</li></ul>`, ''));
     return { sections: W.renumber(out), ctx };
   }
 

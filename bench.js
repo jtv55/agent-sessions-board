@@ -19,13 +19,17 @@
   const TYPES = { swarm: 'Swarm (Claude Code)', single: 'Single agent (Claude Code)', coop: 'Agent pair (CooperBench)', solo: 'Single agent (CooperBench)', mast: 'Framework team (MAST)', pool: 'Single-agent population (MiMo)', prod: 'Production (timing only)', user: 'Community submission', you: 'You', chal: 'Challenger' };
   const TCOL = { swarm: '#6f8cff', single: '#94a3b8', coop: '#f0b429', solo: '#c9b27a', mast: '#c084fc', prod: '#2aa7ae', pool: '#8b9bb4', user: '#fb923c', you: '#f472b6', chal: '#f472b6' };
   const tk = e => e.you ? 'you' : e.chal ? 'chal' : e.type;
-  const dname = e => e.you ? ((window.Grade && window.Grade.me() && window.Grade.me().handle) ? '@' + window.Grade.me().handle : 'You') + ' · ' + e.name : e.name;
+  const dname = e => e.disp ? e.disp : e.you ? ((window.Grade && window.Grade.me() && window.Grade.me().handle) ? '@' + window.Grade.me().handle : 'You') + ' · ' + e.name : e.name;
+  const ownerOf = e => { if (e.you || e.chal) return null; if (e.type === 'user') return e.name.replace(/^@/, ''); if (e.src === 'mast') return e.mf; const so = D && D.corpus.sources[e.src]; return so ? so.repo.split('/')[0] : e.name; };
+  const disp = e => e.you ? dname(e) : e.chal ? e.name : e.type === 'mast' ? ownerOf(e) : '@' + ownerOf(e);
+  // One row per user: their best-scoring entry. Scored entries only; callers pass composite-enriched objects.
+  const bestPerOwner = list => { if (!byUser) return list; const seen = new Set(); return list.slice().sort((p, q) => q.score - p.score).filter(e => { const k = e.owner; if (k == null) return true; if (seen.has(k)) return false; seen.add(k); return true; }); };
   const mean = a => a.length ? sum(a) / a.length : null;
   const cv = a => { if (a.length < 5) return null; const m = mean(a); return m ? Math.sqrt(sum(a.map(x => (x - m) ** 2)) / a.length) / m : null; };
   const flowScore = a => { const c = cv(a); return c == null ? null : 100 / (1 + c); };
   const sc = x => x == null ? null : Math.max(0, Math.min(100, 100 * x));
 
-  let D = null, E = [], host = null, filt = 'all', weights = Object.assign({}, DEFAULT_W), sel = null, YOU = null, CHAL = null, COMM = [];
+  let byUser = true, D = null, E = [], host = null, filt = 'all', weights = Object.assign({}, DEFAULT_W), sel = null, YOU = null, CHAL = null, COMM = [];
   const CFG = () => window.SWARM_CONFIG || {};
 
   // ---------- entrants ----------
@@ -96,14 +100,17 @@
   const cell = v => v == null ? '<td class="bn">–</td>' : `<td class="bn" style="background:${v >= 65 ? 'rgba(52,211,153,' : v >= 40 ? 'rgba(240,180,41,' : 'rgba(248,113,113,'}${(0.12 + 0.28 * Math.abs(v - 50) / 50).toFixed(2)})">${Math.round(v)}</td>`;
 
   function ranked() {
-    let list = E.concat(COMM, CHAL ? [CHAL] : [], YOU ? [YOU] : []).map(e => Object.assign({}, e, composite(e)));
+    let list = E.concat(COMM, CHAL ? [CHAL] : [], YOU ? [YOU] : []).map(e => { const o = Object.assign({}, e, composite(e), { owner: ownerOf(e) }); o.disp = disp(o); return o; });
     const keep = e => e.you || e.chal;
     if (filt === 'teams') list = list.filter(e => keep(e) || ['swarm', 'coop', 'mast'].includes(e.type));
     else if (filt === 'single') list = list.filter(e => keep(e) || ['single', 'solo', 'pool'].includes(e.type));
     else if (filt !== 'all') list = list.filter(e => keep(e) || e.type === filt);
-    const rk = list.filter(e => e.cov >= 0.5 && e.score != null).sort((p, q) => q.score - p.score);
+    const all = list.filter(e => e.cov >= 0.5 && e.score != null).sort((p, q) => q.score - p.score), cnt = {}; all.forEach(e => { if (e.owner != null) cnt[e.owner] = (cnt[e.owner] || 0) + 1; });
+    const isSolo = e => ['single', 'solo', 'pool'].includes(e.type) && !e.you && !e.chal;
+    const nas = filt === 'single' ? [] : all.filter(isSolo);
+    const rk = bestPerOwner(filt === 'single' ? all : all.filter(e => !isSolo(e))); rk.forEach(e => { e.more = e.owner != null && byUser ? cnt[e.owner] - 1 : 0; });
     const un = list.filter(e => !(e.cov >= 0.5 && e.score != null));
-    return { rk, un };
+    return { rk, un, all, nas };
   }
 
   const gcolHex = g => GCOL[g].slice(1);
@@ -118,14 +125,21 @@
     return `<div class="swc"><header><h3>Dataset report cards</h3><p class="sub">Publishing agent traces on Hugging Face? Every public dataset in this benchmark has a median grade. Paste the badge into the dataset card so people see how your swarms score.</p></header><div class="scroll"><table class="m bench"><thead><tr><th>Dataset</th><th>Grade</th><th>Median</th><th>README badge</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
 
+  function naCard(nas) {
+    if (!nas.length) return '';
+    const by = {}; nas.forEach(e => { (by[e.owner] = by[e.owner] || []).push(e); });
+    const li = Object.entries(by).sort((p, q) => q[1].length - p[1].length).map(([o, es]) => `<li><b>@${esc(o)}</b> <span class="sub">N/A: ${es.length} single-agent run${es.length > 1 ? 's' : ''}, no sub-agents. Scored as a control at ${Math.round(median(es.map(e => e.score)))} (${grade(median(es.map(e => e.score)))}).</span></li>`).join('');
+    return `<div class="swc"><header><h3>Didn't even swarm</h3><p class="sub">One agent, no helpers: no rank, just N/A. Their scores sit here as the control group, and the "Single agents" filter above shows them ranked.</p></header><ul class="na-list">${li}</ul></div>`;
+  }
+
   function challengeBanner() {
     return `<div class="chalbar" role="status"><b>${esc(CHAL.name)}</b> scored <b>${CHAL.grade}</b> (${Math.round(CHAL.score0)}) and is challenging you. Drop your logs above to see if you can beat it.</div>`;
   }
 
   // Rank a prospective entrant among everyone else, using the current weights.
   function place(e) {
-    const c = composite(e), others = E.concat(COMM, CHAL ? [CHAL] : []).filter(x => x.id !== e.id).map(x => composite(x)).filter(x => x.cov >= 0.5 && x.score != null);
-    const better = others.filter(x => x.score > c.score).length;
+    const c = composite(e), others = E.concat(COMM, CHAL ? [CHAL] : []).filter(x => x.id !== e.id).map(x => Object.assign(composite(x), { owner: ownerOf(x) })).filter(x => x.cov >= 0.5 && x.score != null);
+    const better = bestPerOwner(others).filter(x => x.score > c.score).length;
     return { score: c.score, rank: better + 1, of: others.length + 1, pct: others.length ? 1 - better / others.length : 1 };
   }
 
@@ -146,9 +160,9 @@
 
   function paint() {
     const el = host.querySelector('#bn-results'); if (!el) return;
-    const { rk, un } = ranked(), T = theme(), ctx = C.Ctx();
-    const rows = rk.map((e, i) => `<tr class="${sel === e.id ? 'sel' : ''}${e.you ? ' you' : ''}${e.chal ? ' chal' : ''}" data-ent="${esc(e.id)}"><td>${i + 1}</td><td class="txt"><b>${esc(dname(e))}</b><br><span class="sub">${esc(e.you ? (TYPES[e.type] || '') + ' · your run' : TYPES[tk(e)])} · ${esc(e.nLabel)}</span></td><td><span class="grade" style="background:${GCOL[grade(e.score)]}">${grade(e.score)}</span></td><td class="bn"><b>${Math.round(e.score)}</b></td>${DIMS.map(([k]) => cell(e.s[k])).join('')}<td class="bn">${pct(e.cov)}</td></tr>`).join('');
-    const unRows = un.map(e => `<li><b>${esc(e.name)}</b> <span class="sub">(${esc(TYPES[e.type])}) · ${esc(e.nLabel)}. Only ${pct(e.cov)} of the score could be measured. ${esc(e.note)}</span></li>`).join('');
+    const { rk, un, all, nas } = ranked(), T = theme(), ctx = C.Ctx();
+    const rows = rk.map((e, i) => `<tr class="${sel === e.id ? 'sel' : ''}${e.you ? ' you' : ''}${e.chal ? ' chal' : ''}" data-ent="${esc(e.id)}"><td>${i + 1}</td><td class="txt"><b>${esc(dname(e))}</b><br><span class="sub" title="${esc(e.name)}">${esc(e.you ? (TYPES[e.type] || '') + ' · your run' : TYPES[tk(e)])} · ${esc(e.nLabel)}${e.more ? ' · +' + e.more + ' more run' + (e.more > 1 ? 's' : '') : ''}</span></td><td><span class="grade" style="background:${GCOL[grade(e.score)]}">${grade(e.score)}</span></td><td class="bn"><b>${Math.round(e.score)}</b></td>${DIMS.map(([k]) => cell(e.s[k])).join('')}<td class="bn">${pct(e.cov)}</td></tr>`).join('');
+    const unRows = un.map(e => `<li><b>${esc(dname(e))}</b> <span class="sub">(${esc(TYPES[e.type])}) · ${esc(e.nLabel)}. Only ${pct(e.cov)} of the score could be measured. ${esc(e.note)}</span></li>`).join('');
     const pick = rk.find(e => e.id === sel) || rk[0];
     const bar = rk.length ? plot(ctx, Math.max(260, rk.length * 22 + 80), [{ type: 'bar', orientation: 'h', y: rk.map(e => shortT(dname(e), 44)).reverse(), x: rk.map(e => e.score).reverse(), marker: { color: rk.map(e => TCOL[tk(e)]).reverse() }, text: rk.map(e => grade(e.score) + ' ' + Math.round(e.score)).reverse(), textposition: 'outside', cliponaxis: false,
       customdata: rk.map(e => TYPES[tk(e)] + ' · ' + e.nLabel).reverse(), hovertemplate: '%{y}<br>%{x:.0f} (%{customdata})<extra></extra>' }],
@@ -160,17 +174,17 @@
     const radar = pick ? plot(ctx, 320, [{ type: 'scatterpolar', r: DIMS.map(([k]) => pick.s[k] == null ? 0 : pick.s[k]).concat([pick.s[DIMS[0][0]] || 0]), theta: DIMS.map(d => d[1]).concat([DIMS[0][1]]), fill: 'toself', fillcolor: 'rgba(111,140,255,0.25)', line: { color: PAL.a, width: 2 }, hovertemplate: '%{theta}: %{r:.0f}<extra></extra>' }],
       L({ margin: { l: 50, r: 50, t: 20, b: 20 }, polar: { bgcolor: 'rgba(0,0,0,0)', radialaxis: { range: [0, 100], gridcolor: T.line, linecolor: T.line, tickfont: { size: 10 } }, angularaxis: { gridcolor: T.line, linecolor: T.line } } })) : '';
     // auto-written read
-    const swarms = rk.filter(e => !e.you && !e.chal && ['swarm', 'coop', 'mast'].includes(e.type)), singles = rk.filter(e => !e.you && !e.chal && ['single', 'solo', 'pool'].includes(e.type));
+    const swarms = rk.filter(e => !e.you && !e.chal && ['swarm', 'coop', 'mast'].includes(e.type)), singles = all.filter(e => !e.you && !e.chal && ['single', 'solo', 'pool'].includes(e.type));
     const top = rk[0], bot = rk[rk.length - 1];
     const fr = rk.find(e => e.id === 'fcall'), fs = rk.find(e => e.id === 'fsolo');
     const read = rk.length ? `${b(dname(top))} ranks first with a ${b(grade(top.score) + ' (' + Math.round(top.score) + ')')}; ${b(dname(bot))} is last with ${b(grade(bot.score) + ' (' + Math.round(bot.score) + ')')}. ${swarms.length && singles.length ? `The median multi-agent team scores ${b(Math.round(median(swarms.map(e => e.score))))} against ${b(Math.round(median(singles.map(e => e.score))))} for single agents.` : ''} ${fr && fs ? `On identical tasks, two cooperating agents score ${b(Math.round(fr.score))} against ${b(Math.round(fs.score))} for one agent.` : ''}` : '';
-    el.innerHTML = `<div class="swc"><header><h3>Leaderboard</h3><p class="sub">${rk.length} ranked, ${un.length} without enough measurable dimensions. Click a row to see its profile. ${YOU ? 'Your run is highlighted.' : 'Drop your logs above to add yours.'}</p></header>
-      <div class="scroll"><table class="m bench"><thead><tr><th>#</th><th>Swarm</th><th>Grade</th><th>Score</th>${DIMS.map(d => `<th title="${esc(d[2])}">${d[1]}</th>`).join('')}<th title="Share of the weighted score that could be measured; missing share pulls the score toward 50">Coverage</th></tr></thead><tbody>${rows || '<tr><td colspan="10">Nothing to rank under this filter.</td></tr>'}</tbody></table></div>
+    el.innerHTML = `<div class="swc"><header><h3>Leaderboard</h3><p class="sub">${rk.length} ${byUser ? 'users' : 'runs'} ranked, ${un.length} without enough measurable dimensions. Click a row to see its profile. ${YOU ? 'Your run is highlighted.' : 'Drop your logs above to add yours.'}</p></header>
+      <div class="scroll"><table class="m bench"><thead><tr><th>#</th><th>User</th><th>Grade</th><th>Score</th>${DIMS.map(d => `<th title="${esc(d[2])}">${d[1]}</th>`).join('')}<th title="Share of the weighted score that could be measured; missing share pulls the score toward 50">Coverage</th></tr></thead><tbody>${rows || '<tr><td colspan="10">Nothing to rank under this filter.</td></tr>'}</tbody></table></div>
       ${read ? `<p class="read">${read}</p>` : ''}</div>
       <div class="swc"><header><h3>Composite score</h3><p class="sub">Dotted lines mark grade boundaries (35, 50, 65, 80). Colour is the kind of swarm.</p></header>${bar}</div>
       <div class="grid2 wide"><div class="swc"><header><h3>Score by dimension</h3></header>${heat}</div><div class="swc"><header><h3>${pick ? esc(shortT(dname(pick), 40)) : 'Profile'}</h3><p class="sub">${pick ? esc(pick.note) : ''}</p></header>${radar}</div></div>
       <div class="swc"><header><h3>Efficiency against outcome</h3><p class="sub">Up and to the right is better: more of the work holds up, and less spend is wasted.</p></header>${bub}</div>
-      ${unRows ? `<div class="swc"><header><h3>Not enough data to rank</h3></header><ul class="na-list">${unRows}</ul></div>` : ''}${datasetCards(rk)}`;
+      ${unRows ? `<div class="swc"><header><h3>Not enough data to rank</h3></header><ul class="na-list">${unRows}</ul></div>` : ''}${naCard(nas)}${datasetCards(all)}`;
     W && window.Swarms.loadPlotly().then(() => ctx.draws.forEach(f => { try { f(); } catch (e) { console.error(e); } })).catch(() => { el.insertAdjacentHTML('afterbegin', '<p class="err">Charts could not load.</p>'); });
   }
 
@@ -182,7 +196,7 @@
       <div><h3>How the score works</h3><p>Five dimensions, each scored 0 to 100 from the logs: <b>Outcome</b>, <b>Reliability</b>, <b>Efficiency</b>, <b>Flow</b> and <b>Coordination</b>. The score is their weighted average. If a source cannot measure a dimension (a text-only log has no cost, say), it is left out and the weights of the others are rescaled. Swarms with under half of the weight measurable are listed but not ranked, and a score built from fewer dimensions is pulled toward 50 in proportion to what is missing, so thinly measured swarms cannot top the table on proxies alone.</p></div>
       <div><h3>Grades</h3><p><b>A</b> 80 and up, <b>B</b> 65 to 79, <b>C</b> 50 to 64, <b>D</b> 35 to 49, <b>F</b> under 35. Move the sliders to decide what matters: the leaderboard re-ranks instantly. Scores compare swarms inside this sample; they are not a grade against the whole world.</p></div></div>
       <div class="weights" role="group" aria-label="Weights">${sliders}<button type="button" data-reset="1">Reset weights</button></div></details>
-      <div class="lenses" role="group" aria-label="Filter">${chip('all', 'All')}${chip('teams', 'Multi-agent teams')}${chip('single', 'Single agents')}${chip('swarm', 'Claude Code swarms')}${chip('coop', 'CooperBench pairs')}${chip('mast', 'Framework teams (MAST)')}${chip('prod', 'Production traces')}${COMM.length ? chip('user', 'Community (' + COMM.length + ')') : ''}</div>
+      <div class="lenses" role="group" aria-label="Filter">${chip('all', 'All')}${chip('teams', 'Multi-agent teams')}${chip('single', 'Single agents')}${chip('swarm', 'Claude Code swarms')}${chip('coop', 'CooperBench pairs')}${chip('mast', 'Framework teams (MAST)')}${chip('prod', 'Production traces')}<button type="button" data-bu="1" aria-pressed="${!byUser}" title="Show every run instead of one row per user">Every run</button>${COMM.length ? chip('user', 'Community (' + COMM.length + ')') : ''}</div>
       <div id="bn-results"></div>
       <details id="how"><summary>Method, formulas and caveats</summary><ul>
       <li><b>Outcome.</b> Claude Code swarms: half the share of verification runs that passed (50% if none were run, since correctness is then unproven) plus half the share of agents that delivered anything. CooperBench: share of required features that passed. MAST: share of runs free of specification and verification failure modes.</li>
@@ -219,13 +233,14 @@
   }
 
   function apiObj() {
-    return { DIMS, GCOL, grade, place, count: () => E.map(composite).filter(x => x.cov >= 0.5 && x.score != null).length,
+    return { DIMS, GCOL, grade, place, count: () => bestPerOwner(E.map(x => Object.assign(composite(x), { owner: ownerOf(x) })).filter(x => x.cov >= 0.5 && x.score != null)).length,
       you: s => Object.assign(deepEntrant(s), { you: true, id: 'you' }), setYou: e => { YOU = e; if (e) sel = 'you'; }, setHandle: () => paint(), repaint: paint, refreshCommunity,
       demoEntrant: () => { const r = E.map(e => Object.assign({}, e, composite(e))).filter(e => e.type === 'swarm' && e.cov >= 0.5).sort((p, q) => q.score - p.score)[0]; return r ? Object.assign({}, r) : null; } };
   }
 
   function bind(el) {
     el.addEventListener('click', e => {
+      if (e.target.closest('[data-bu]')) { byUser = !byUser; shell(); return; }
       const f = e.target.closest('[data-bf]'); if (f) { filt = f.dataset.bf; sel = null; shell(); return; }
       if (e.target.closest('[data-reset]')) { weights = Object.assign({}, DEFAULT_W); shell(); return; }
       const r = e.target.closest('[data-ent]'); if (r) { sel = r.dataset.ent; paint(); }
