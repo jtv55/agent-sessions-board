@@ -246,7 +246,8 @@
       results = prepped.map(s => ({ ent: api.you(s) }));
       results.sort((a, b) => b.ent.n - a.ent.n || b.ent.calls - a.ent.calls); pick = 0;
       api.setYou(results[0].ent.n > 1 ? results[0].ent : null);
-      st.textContent = `Graded ${results.length} session${results.length === 1 ? '' : 's'} from ${files.length} file${files.length === 1 ? '' : 's'} in your browser. Nothing was uploaded.`;
+      const top = results[0].ent;
+      st.textContent = `Graded ${results.length} session${results.length === 1 ? '' : 's'} from ${files.length} file${files.length === 1 ? '' : 's'}: the largest has ${top.n} agent${top.n === 1 ? '' : 's'} and ${top.calls} tool calls. Nothing was uploaded.` + (top.n <= 1 ? ' No sub-agent records were found in what you picked. If this session used sub-agents, merge their logs into the same file (see the phone tip above).' : '');
       paintResult(); api.repaint();
       const res = $(host, '#gr-res'); if (res && res.scrollIntoView) res.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) { console.error(e); st.textContent = 'Could not read those files. Try a single .jsonl from ~/.claude/projects.'; }
