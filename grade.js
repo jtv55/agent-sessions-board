@@ -1,5 +1,5 @@
-// "Grade my swarm": parse Claude Code session logs entirely in the browser, score them with the benchmark's own formulas,
-// and turn the result into a rank, a share card, a challenge link and a README badge. Nothing is uploaded.
+// "Swarm check": parse Claude Code session logs entirely in the browser, count the agents in each session,
+// and turn the biggest into a rank, a share card, a challenge link and a README badge. Nothing is uploaded.
 (() => {
   'use strict';
   const B = window.SWB;
@@ -90,16 +90,19 @@
   }
 
   async function parseFile(file) {
-    const states = new Map(); let n = 0;
+    const states = new Map(); let n = 0, foreign = null;
     for await (const ln of linesOf(file)) {
       let r; try { r = JSON.parse(ln); } catch (e) { continue; }
       if (!r || typeof r !== 'object') continue;
+      if (!foreign && (r.type === 'session_meta' || r.type === 'response_item' || r.type === 'turn_context')) foreign = 'Codex CLI';
       if (++n % 4000 === 0) await new Promise(res => setTimeout(res, 0));
       const key = r.isSidechain === true ? 'sub:' + (r.agentId || r.sessionId || '') : 'main';
       let st = states.get(key); if (!st) { st = newState(); states.set(key, st); }
       consume(st, r, key === 'main');
     }
-    return [...states.entries()].filter(([, st]) => st.events.length || st.turns.size).map(([key, st]) => Object.assign(st, { sidechain: key !== 'main', name: file.name }));
+    const out = [...states.entries()].filter(([, st]) => st.events.length || st.turns.size).map(([key, st]) => Object.assign(st, { sidechain: key !== 'main', name: file.name }));
+    if (!out.length && foreign) out.foreign = foreign;
+    return out;
   }
 
   function toAgent(p, t0, main) {
@@ -152,53 +155,48 @@
   const unb64u = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
   const baseUrl = () => location.origin + location.pathname;
 
-  const TAGS = { A: ['Certified swarm.', 'It works, it holds up, and nobody is idle.'], B: ['A real team, with loose ends.', 'Most of the work lands. A few agents are coasting.'], C: ['More meeting than swarm.', 'Plenty of agents, not much of it sticks.'], D: ['Your agents are mostly standing around.', 'High spend, shaky results, lots of retries.'], F: ['Have you considered one agent?', 'Most of the spend produced nothing that held up.'] };
+  const tagFor = n => n >= 32 ? ['A colony.', 'More agents than most teams have people.'] : n >= 16 ? ['A full-on swarm.', 'Helpers launching helpers.'] : n >= 8 ? ['Now that’s a swarm.', 'A proper crowd of agents.'] : n >= 4 ? ['A proper team.', 'A lead and a few helpers.'] : ['A small crew.', 'You’re swarming. Barely.'];
 
   function view(r) {
-    const e = r.ent;
-    if (e.n <= 1) return { na: true, grade: 'N/A', score: 0, rank: 0, of: 0, pct: 0, dims: api.DIMS.map(([k, n]) => ({ k, n, v: null })), tag: 'You didn’t even swarm.', sub: 'One agent, no sub-agents. Launch helpers and try again.', agents: 1, waste: null, name: e.name, handle: me && me.handle, type: e.type };
-    const rk = api.place(e), g = api.grade(rk.score), t = TAGS[g];
-    const dims = api.DIMS.map(([k, n]) => ({ k, n, v: e.s[k] }));
-    const waste = e.s.efficiency != null ? Math.round(100 - e.s.efficiency) : null;
-    return { grade: g, score: Math.round(rk.score), rank: rk.rank, of: rk.of, pct: rk.pct, dims, tag: t[0], sub: t[1], agents: e.n, waste, name: e.name, handle: me && me.handle, type: e.type };
+    const e = r.ent, base = { name: e.name, handle: me && me.handle, type: e.type, agents: e.n, calls: e.calls || 0, peak: e.peak || 0 };
+    if (e.n <= 1) return Object.assign(base, { na: true, rank: 0, of: 0, tag: 'You don’t even swarm!', sub: 'One agent, no sub-agents. Launch helpers and try again.' });
+    const rk = api.place(e), t = tagFor(e.n);
+    return Object.assign(base, { rank: rk.rank, of: rk.of, tag: t[0], sub: t[1] });
   }
 
   function drawCard(cv, d) {
     const ctx = cv.getContext('2d'), Wd = cv.width, H = cv.height;
-    const col = d.na ? '#6b7385' : { A: '#34d399', B: '#7fd8a2', C: '#f0b429', D: '#f59e6b', F: '#f87171' }[d.grade];
+    const col = d.na ? '#6b7385' : '#7c9cff';
     const g = ctx.createLinearGradient(0, 0, Wd, H); g.addColorStop(0, '#12151c'); g.addColorStop(1, '#1d2230'); ctx.fillStyle = g; ctx.fillRect(0, 0, Wd, H);
     ctx.fillStyle = col; ctx.globalAlpha = 0.12; ctx.beginPath(); ctx.arc(250, 330, 260, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
     const F = 'IBM Plex Sans, system-ui, Segoe UI, sans-serif', M = 'IBM Plex Mono, Consolas, monospace';
-    ctx.fillStyle = '#9aa3b2'; ctx.font = `600 26px ${M}`; ctx.fillText('DO YOU EVEN SWARM?', 60, 72);
-    ctx.fillStyle = col; ctx.font = `700 ${d.na ? 150 : 330}px ${F}`; ctx.textAlign = 'center'; ctx.fillText(d.grade, 250, d.na ? 370 : 440); ctx.textAlign = 'left';
+    ctx.fillStyle = '#9aa3b2'; ctx.font = `600 26px ${M}`; ctx.fillText('SWARM CHECK', 60, 72);
+    const num = String(d.agents); let z = 330; do { ctx.font = `700 ${z}px ${F}`; z -= 10; } while (ctx.measureText(num).width > 400 && z > 80);
+    ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.fillText(num, 250, 420); ctx.fillStyle = '#9aa3b2'; ctx.font = `600 34px ${M}`; ctx.fillText(d.agents === 1 ? 'AGENT' : 'AGENTS', 250, 490); ctx.textAlign = 'left';
     const fit = (t, w, size, wt) => { let z = size; do { ctx.font = `${wt} ${z}px ${F}`; z -= 2; } while (ctx.measureText(t).width > w && z > 18); };
     ctx.fillStyle = '#e8eaf0'; fit(d.tag, 640, 64, 700); ctx.fillText(d.tag, 500, 190);
     ctx.fillStyle = '#9aa3b2'; fit(d.sub, 640, 28, 400); ctx.fillText(d.sub, 500, 236);
     if (d.na) { ctx.fillStyle = '#9aa3b2'; ctx.font = `400 28px ${F}`; ctx.fillText('Not ranked: 1 agent, 0 sub-agents', 500, 306); }
-    else { ctx.fillStyle = '#e8eaf0'; ctx.font = `600 44px ${M}`; ctx.fillText(`${d.score}/100`, 500, 306);
-    ctx.fillStyle = '#9aa3b2'; ctx.font = `400 28px ${F}`; ctx.fillText(`#${d.rank} of ${d.of} public swarms · ${d.agents} agent${d.agents === 1 ? '' : 's'}`, 700, 304); }
-    d.dims.forEach((x, i) => {
-      const y = 350 + i * 40; ctx.fillStyle = '#9aa3b2'; ctx.font = `400 22px ${F}`; ctx.fillText(x.n, 500, y + 20);
-      ctx.fillStyle = '#2a303d'; ctx.fillRect(700, y + 4, 400, 14);
-      if (x.v != null) { ctx.fillStyle = x.v >= 65 ? '#34d399' : x.v >= 40 ? '#f0b429' : '#f87171'; ctx.fillRect(700, y + 4, 4 * x.v, 14); ctx.fillStyle = '#e8eaf0'; ctx.font = `500 20px ${M}`; ctx.fillText(String(Math.round(x.v)), 1112, y + 20); }
-      else { ctx.fillStyle = '#6b7385'; ctx.font = `400 20px ${F}`; ctx.fillText('not measurable', 710, y + 20); }
-    });
+    else {
+      ctx.fillStyle = '#e8eaf0'; ctx.font = `600 44px ${M}`; ctx.fillText(`#${d.rank} of ${d.of}`, 500, 306); ctx.fillStyle = '#9aa3b2'; ctx.font = `400 28px ${F}`; ctx.fillText('public swarms, by agent count', 760, 304);
+      [['Tool calls', d.calls.toLocaleString()], ['Most at once', d.peak ? String(d.peak) : '–']].forEach((x, i) => { const y = 380 + i * 56; ctx.fillStyle = '#9aa3b2'; ctx.font = `400 26px ${F}`; ctx.fillText(x[0], 500, y); ctx.fillStyle = '#e8eaf0'; ctx.font = `600 40px ${M}`; ctx.fillText(x[1], 800, y + 2); });
+    }
     ctx.fillStyle = '#e8eaf0'; ctx.font = `600 30px ${F}`; ctx.fillText(d.handle ? '@' + d.handle : 'Anonymous swarm', 60, 575);
     ctx.fillStyle = '#7c9cff'; ctx.font = `500 26px ${M}`; ctx.textAlign = 'right'; ctx.fillText(location.host + location.pathname.replace(/\/$/, ''), 1140, 575); ctx.textAlign = 'left';
   }
 
   function challenge(d) {
-    if (d.na) return baseUrl(); return baseUrl() + '#c=' + b64u({ h: d.handle || '', s: d.score, g: d.grade, n: d.agents, d: d.dims.map(x => x.v == null ? null : Math.round(x.v)) }); }
-  const shareText = d => d.na ? 'I got an N/A on "Do you even swarm?": I didn’t even swarm. Can your agents do better?' : `I scored ${d.grade} (${d.score}/100) on "Do you even swarm?": #${d.rank} of ${d.of} public AI agent teams. ${d.tag} Think your agents can beat that?`;
+    if (d.na) return baseUrl(); return baseUrl() + '#c=' + b64u({ h: d.handle || '', n: d.agents, c: d.calls }); }
+  const shareText = d => d.na ? 'I got an N/A on "Do you even swarm?": one agent, no helpers. Can you do better?' : `I run swarms of ${d.agents} agents: #${d.rank} of ${d.of} on "Do you even swarm?" ${d.tag} Think you can beat that?`;
 
   function resultHtml() {
     if (!results.length) return '';
     const r = results[pick], d = view(r), url = challenge(d);
-    const badge = `[![Swarm grade: ${d.grade} ${d.score}](https://img.shields.io/badge/swarm%20grade-${d.na ? 'N%2FA-6b7385' : d.grade + '%20' + d.score + '-' + { A: '34d399', B: '7fd8a2', C: 'f0b429', D: 'f59e6b', F: 'f87171' }[d.grade]})](${url})`;
-    const rows = results.map((x, i) => { const v = view(x); return `<tr class="${i === pick ? 'sel' : ''}" data-gpick="${i}"><td class="txt"><b>${esc(x.ent.name)}</b></td><td class="bn">${x.ent.n}</td><td><span class="grade" style="background:${v.na ? '#6b7385' : api.GCOL[v.grade]}">${v.grade}</span></td><td class="bn">${v.na ? '–' : v.score}</td><td class="bn">${v.na ? 'n/a' : '#' + v.rank}</td></tr>`; }).join('');
+    const badge = `[![Swarm check: ${d.na ? 'N/A' : d.agents + ' agents'}](https://img.shields.io/badge/swarm%20check-${d.na ? 'N%2FA-6b7385' : d.agents + '%20agents-6f8cff'})](${url})`;
+    const rows = results.map((x, i) => { const v = view(x); return `<tr class="${i === pick ? 'sel' : ''}" data-gpick="${i}"><td class="txt"><b>${esc(x.ent.name)}</b></td><td class="bn"><b>${x.ent.n}</b></td><td class="bn">${x.ent.calls || '–'}</td><td class="bn">${v.na ? 'n/a' : '#' + v.rank}</td></tr>`; }).join('');
     const cfg = CFG(), pro = cfg.STRIPE_LINK ? cfg.STRIPE_LINK + (cfg.STRIPE_LINK.includes('?') ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(me ? me.handle : '') + (me && me.email ? '&prefilled_email=' + encodeURIComponent(me.email) : '') : '';
     return `<div class="res" id="gr-res">
-      <div class="res-top"><canvas id="gr-card" width="1200" height="630" aria-label="Share card: grade ${d.grade}, ${d.score} out of 100, rank ${d.rank} of ${d.of}"></canvas></div>
+      <div class="res-top"><canvas id="gr-card" width="1200" height="630" aria-label="Share card: ${d.agents} agent${d.agents === 1 ? '' : 's'}${d.na ? ', not ranked' : ', rank ' + d.rank + ' of ' + d.of}"></canvas></div>
       <div class="res-act">
         <button type="button" class="primary" data-g="dl">Download card</button>
         <button type="button" data-g="share">Share</button>
@@ -209,14 +207,14 @@
         ${demo ? '' : '<button type="button" data-g="deep">Open the deep dive for this run</button>'}
       </div>
       <p class="sub" id="gr-msg" role="status"></p>
-      ${results.length > 1 ? `<div class="scroll"><table class="m bench"><thead><tr><th>Session</th><th>Agents</th><th>Grade</th><th>Score</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table></div><p class="sub">Click a session to switch the card to it. The biggest swarm is picked by default.</p>` : ''}
-      ${d.na ? '<div class="claim card"><h3>No swarm, no rank</h3><p class="sub">Leaderboard spots go to teams of agents. Have your main agent launch sub-agents (the Task tool) on a real task, then drop the new logs here.</p></div>' : `<div class="claim card">${me && me.handle ? `<h3>@${esc(me.handle)} is on the board</h3><p class="sub">${me.synced ? 'Your score is live on the public leaderboard.' : (cfg.API ? 'Saved. Re-submit after your next run to move up.' : 'Saved on this device. Community submissions switch on when the board API is connected.')}</p><button type="button" data-g="submit">${cfg.API ? 'Submit this run to the public board' : 'Save this run'}</button>`
-        : `<h3>Claim your spot on the leaderboard</h3><p class="sub">Pick a handle to put this run on the board and track your climb. We store scores only, never your logs.</p>
-        <form id="gr-claim" autocomplete="off"><input name="handle" placeholder="handle (3-20 letters, numbers, _)" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required aria-label="Handle"><input name="email" type="email" placeholder="email (optional, for the weekly review)" aria-label="Email"><button class="primary" type="submit">Claim my rank</button></form><p class="sub fine">We store your handle, the five scores and the agent count. An email is optional and used only for the weekly review and product updates. To delete anything, <a href="https://github.com/jtv55/agent-sessions-board/issues" target="_blank" rel="noopener noreferrer">open an issue</a> and we will remove it.</p>`}</div>`}
-      ${d.na ? '' : `<div class="card cohort"><h3>Cohort benchmarks: ${Math.min(api.commCount(), 30)} of 30 contributions</h3><div class="meter" role="img" aria-label="${Math.min(api.commCount(), 30)} of 30 contributions"><i style="width:${Math.round(100 * Math.min(api.commCount(), 30) / 30)}%"></i></div><p class="sub">Your percentile against teams like yours (${d.agents} agents, same model, same task type) unlocks once a cut has 30 contributed runs. Submitting your five scores, never your logs, counts as a contribution and puts you first in line.</p></div>`}
-      <div class="card pro"><h3>Swarm Index</h3><p class="sub">The data nobody else has: cohort benchmarks from real teams, every public run as a clean dataset and API, and a monthly State of Swarms index. Free keeps grading, ranking and sharing.</p>
+      ${results.length > 1 ? `<div class="scroll"><table class="m bench"><thead><tr><th>Session</th><th>Agents</th><th>Tool calls</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table></div><p class="sub">Click a session to switch the card to it. The biggest swarm is picked by default.</p>` : ''}
+      ${d.na ? '<div class="claim card"><h3>You don’t even swarm!</h3><p class="sub">Leaderboard spots go to teams of agents. Have your main agent launch sub-agents (the Task tool) on a real task, then drop the new logs here.</p></div>' : `<div class="claim card">${me && me.handle ? `<h3>@${esc(me.handle)} is on the board</h3><p class="sub">${me.synced ? 'Your score is live on the public leaderboard.' : (cfg.API ? 'Saved. Re-submit after your next run to move up.' : 'Saved on this device. Community submissions switch on when the board API is connected.')}</p><button type="button" data-g="submit">${cfg.API ? 'Submit this run to the public board' : 'Save this run'}</button>`
+        : `<h3>Claim your spot on the leaderboard</h3><p class="sub">Pick a handle to put this run on the board and track your climb. We store your agent count only, never your logs.</p>
+        <form id="gr-claim" autocomplete="off"><input name="handle" placeholder="handle (3-20 letters, numbers, _)" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required aria-label="Handle"><input name="email" type="email" placeholder="email (optional, for the weekly review)" aria-label="Email"><button class="primary" type="submit">Claim my rank</button></form><p class="sub fine">We store your handle and your agent count. An email is optional and used only for the weekly review and product updates. To delete anything, <a href="https://github.com/jtv55/agent-sessions-board/issues" target="_blank" rel="noopener noreferrer">open an issue</a> and we will remove it.</p>`}</div>`}
+      ${d.na ? '' : `<div class="card cohort"><h3>Cohort cuts: ${Math.min(api.commCount(), 30)} of 30 contributions</h3><div class="meter" role="img" aria-label="${Math.min(api.commCount(), 30)} of 30 contributions"><i style="width:${Math.round(100 * Math.min(api.commCount(), 30) / 30)}%"></i></div><p class="sub">Your place against teams like yours (${d.agents} agents, same model, same task type) unlocks once a cut has 30 contributed runs. Submitting your agent count, never your logs, counts as a contribution and puts you first in line.</p></div>`}
+      <div class="card pro"><h3>Swarm Index</h3><p class="sub">The data nobody else has: cohort benchmarks from real teams, every public run as a clean dataset and API, and a monthly State of Swarms index. Free keeps counting, ranking and sharing.</p>
         <a class="btn primary" ${pro ? `href="${esc(pro)}" target="_blank" rel="noopener noreferrer"` : 'aria-disabled="true" href="#"'}>${pro ? 'Upgrade with Stripe · ' + esc(cfg.PRICE || '') : 'Coming soon'}</a></div>
-      <p class="sub">Next: <b>run a second swarm</b> with a verifier agent and watch the Reliability bar move. Your rank updates the moment you drop new logs.</p>
+      <p class="sub">Next: <b>launch more helpers</b> and drop the new logs. Your rank updates the moment you do.</p>
     </div>`;
   }
 
@@ -235,21 +233,22 @@
     if (!files.length) { st.textContent = 'No .jsonl session logs found in what you dropped. Claude Code keeps them in ~/.claude/projects.'; return; }
     busy = true; demo = false;
     try {
-      const parsed = []; let done = 0;
+      const parsed = [], foreign = new Set(); let done = 0;
       // Biggest first would block the UI longest; parse in dropped order and cap the work at 200 files.
       for (const f of files.slice(0, 200)) {
         st.textContent = `Reading ${++done} of ${Math.min(files.length, 200)}: ${f.name.slice(0, 28)}`;
-        parsed.push(...await parseFile(f));
+        const got = await parseFile(f); if (got.foreign) foreign.add(got.foreign); parsed.push(...got);
       }
       const sess = assemble(parsed);
-      if (!sess.length) { st.textContent = 'These logs have too few tool calls to grade (need at least 5). Try a longer session.'; return; }
+      if (!sess.length && foreign.size) { st.textContent = `That looks like a ${[...foreign][0]} log. Only Claude Code logs are supported so far.`; return; }
+      if (!sess.length) { st.textContent = 'These logs have too few tool calls to count (need at least 5). Try a longer session.'; return; }
       const prepped = B.prepDeep(sess);
       window.Swarms.addMine(prepped);
       results = prepped.map(s => ({ ent: api.you(s), sid: s.id }));
       results.sort((a, b) => b.ent.n - a.ent.n || b.ent.calls - a.ent.calls); pick = 0;
       api.setYou(results[0].ent.n > 1 ? results[0].ent : null);
       const top = results[0].ent;
-      st.textContent = `Graded ${results.length} session${results.length === 1 ? '' : 's'} from ${files.length} file${files.length === 1 ? '' : 's'}: the largest has ${top.n} agent${top.n === 1 ? '' : 's'} and ${top.calls} tool calls. Nothing was uploaded.` + (top.n <= 1 ? ' No sub-agent records were found in what you picked. If this session used sub-agents, merge their logs into the same file (see the phone tip above).' : '');
+      st.textContent = `Checked ${results.length} session${results.length === 1 ? '' : 's'} from ${files.length} file${files.length === 1 ? '' : 's'}: the largest has ${top.n} agent${top.n === 1 ? '' : 's'} and ${top.calls} tool calls. Nothing was uploaded.` + (top.n <= 1 ? ' No sub-agent records were found in what you picked. If this session used sub-agents, merge their logs into the same file (see the phone tip above).' : '');
       paintResult(); api.repaint();
       const res = $(host, '#gr-res'); if (res && res.scrollIntoView) res.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) { console.error(e); st.textContent = 'Could not read those files. Try a single .jsonl from ~/.claude/projects.'; }
@@ -266,9 +265,9 @@
   async function submit() {
     const cfg = CFG(); if (!me || !results.length) return;
     const e = results[pick].ent;
-    if (!cfg.API) { store.set('swarm.runs', (store.get('swarm.runs') || []).concat([{ t: Date.now(), s: e.s, n: e.n }]).slice(-50)); msg('Saved on this device.'); return; }
+    if (!cfg.API) { store.set('swarm.runs', (store.get('swarm.runs') || []).concat([{ t: Date.now(), n: e.n, c: e.calls }]).slice(-50)); msg('Saved on this device.'); return; }
     try {
-      const r = await fetch(cfg.API.replace(/\/$/, '') + '/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handle: me.handle, token: me.token, email: me.email || undefined, s: e.s, n: e.n, type: e.type }) });
+      const r = await fetch(cfg.API.replace(/\/$/, '') + '/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handle: me.handle, token: me.token, email: me.email || undefined, n: e.n, c: e.calls, type: e.type, s: { coord: Math.min(100, e.n) } }) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
       me.token = j.token || me.token; me.synced = true; store.set('swarm.me', me); msg('Submitted. You are on the public board.'); paintResult(); api.refreshCommunity();
     } catch (err) { msg('Could not reach the board right now: ' + err.message); }
@@ -281,17 +280,17 @@
       <div class="hero-l">
         <p class="kicker"><i class="dot"></i> Free · 60 seconds · nothing is uploaded</p>
         <h1 id="gh" class="hero-h">Do you even <em>swarm</em>?</h1>
-        <p class="lead">Drop your Claude Code logs. Get a letter grade, a rank among ${api.count()} public agent teams, and a card to flex. Parsed in this tab: open your network panel and watch nothing leave.</p>
+        <p class="lead">Drop your Claude Code logs. We count the agents in your biggest session and rank you among ${api.count()} public swarms. One agent? You don’t even swarm. Parsed in this tab: open your network panel and watch nothing leave.</p>
         <div id="drop" class="drop" tabindex="0" role="button" aria-label="Drop session logs here or press Enter to choose a folder"><b>Drop a folder or .jsonl files here</b><span>or press Enter to choose</span></div>
         <div class="hero-btns"><button type="button" data-g="folder">Choose folder</button><button type="button" data-g="files">Choose files</button><button type="button" data-g="demo">Try a sample swarm</button></div>
         <details class="phone" id="gr-phone"><summary>On your phone? Get the log from Claude</summary><p class="sub">Phones can't pick folders, but you can ask your Claude Code session to hand you one file. Paste this into the session, save what it sends to Files, then tap <b>Choose files</b> and pick it. Sub-agents are included, so a swarm still counts.</p><pre class="prompt" id="gr-prompt">Find this session's log: the newest .jsonl file for this project in ~/.claude/projects/. Merge it and every sub-agent log in the subagents folder beside it into ONE file by concatenating them, name it swarm-session.json, and send it to me as a downloadable file.</pre><button type="button" data-copy="__PROMPT__">Copy prompt</button></details>
         <input id="gr-fi" type="file" accept=".jsonl,.json" multiple hidden><input id="gr-fo" type="file" webkitdirectory hidden>
         <p class="sub" id="gr-status" role="status">Where are my logs? Claude Code writes them to <code>~/.claude/projects/</code> (on Windows <code>%USERPROFILE%\\.claude\\projects</code>). Sub-agent transcripts live in a <code>subagents</code> folder beside each session.</p>
-        <p class="sub">No sub-agents in the logs? You get an N/A: you didn’t even swarm. Single agents are only on the table as the control group.</p>
+        <p class="sub">No sub-agents in the logs? You get an N/A: you don’t even swarm!</p>
       </div>
       <div class="hero-r" id="gr-result"></div></section>
-      <section class="proof" aria-label="What the benchmark is built from">${api.stats().map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('')}</section>
-      <ol class="steps3"><li><b>Drop</b><span>A folder or a .jsonl. Parsed locally, never uploaded.</span></li><li><b>Get graded</b><span>Five dimensions, A to F, ranked against every public swarm. No sub-agents? N/A.</span></li><li><b>Flex or fix</b><span>Download the card, send a challenge link, paste a README badge.</span></li></ol>`;
+      <section class="proof" aria-label="What the check is built from">${api.stats().map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('')}</section>
+      <ol class="steps3"><li><b>Drop</b><span>A folder or a .jsonl. Parsed locally, never uploaded.</span></li><li><b>Get counted</b><span>We count your agents and rank you against every public swarm. No sub-agents? N/A.</span></li><li><b>Flex or fix</b><span>Download the card, send a challenge link, paste a README badge.</span></li></ol>`;
     const drop = $(host, '#drop');
     $(host, '[data-copy="__PROMPT__"]').dataset.copy = $(host, '#gr-prompt').textContent;
     if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) { $(host, '#gr-phone').open = true; drop.querySelector('b').textContent = 'Tap to choose your log files'; drop.querySelector('span').textContent = 'JSON or JSONL from Claude Code'; }
