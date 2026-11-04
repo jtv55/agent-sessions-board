@@ -3,9 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
-<title>Agent Sessions Board</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.workers.dev; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<title>Do you even swarm?</title>
+<meta name="description" content="Grade your AI agent team against hundreds of public swarms. Drop your Claude Code logs, get a letter grade, a rank and a card to share. Nothing is uploaded.">
+<meta property="og:title" content="Do you even swarm?">
+<meta property="og:description" content="The public benchmark for AI agent teams. Grade yours in 60 seconds, free.">
+<meta name="twitter:card" content="summary">
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,71 +16,40 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main id="lock" class="lock">
-  <form id="f" autocomplete="off">
-    <h1>Agent sessions</h1>
-    <p>Enter the passphrase to unlock. The data is encrypted and decrypted in this browser only.</p>
-    <label for="pw" class="sr">Passphrase</label>
-    <input id="pw" type="password" autocomplete="current-password" spellcheck="false" placeholder="Passphrase" required>
-    <button type="submit" id="go" class="primary">Unlock</button>
-    <p id="err" class="err" role="alert"></p>
-  </form>
-</main>
-
-<main id="app" class="wrap" hidden>
+<main id="app" class="wrap wide">
   <header class="top">
     <div>
-      <h1>Agent sessions</h1>
-      <p class="sub" id="gen"></p>
+      <h1>Do you even swarm?</h1>
+      <p class="sub">The public benchmark for AI agent teams. Free to grade. Your logs never leave your browser.</p>
     </div>
-    <button id="lockbtn" type="button">Lock</button>
+    <nav class="topnav" aria-label="Site"><a class="btn" href="#pro" data-go="pro">Swarm Pro</a></nav>
   </header>
 
   <div class="tabs" role="tablist" aria-label="Views">
-    <button type="button" role="tab" id="tab-mine" data-tab="mine" aria-selected="true" aria-controls="pane-mine">My sessions</button>
-    <button type="button" role="tab" id="tab-pub" data-tab="pub" aria-selected="false" aria-controls="pane-pub" tabindex="-1">Public swarms</button>
-    <button type="button" role="tab" id="tab-bench" data-tab="bench" aria-selected="false" aria-controls="pane-bench" tabindex="-1">Swarm benchmark</button>
+    <button type="button" role="tab" id="tab-bench" data-tab="bench" aria-selected="true" aria-controls="pane-bench">Swarm benchmark</button>
+    <button type="button" role="tab" id="tab-pub" data-tab="pub" aria-selected="false" aria-controls="pane-pub" tabindex="-1">Public swarm deep dives</button>
   </div>
 
-  <div id="pane-mine" role="tabpanel" aria-labelledby="tab-mine">
-  <section class="tiles" id="tiles" aria-label="Totals"></section>
-
-  <section aria-labelledby="bh">
-    <div class="head">
-      <h2 id="bh">Leaderboard</h2>
-      <div class="ctrls">
-        <div class="seg" id="seg-metric" role="group" aria-label="Rank by">
-          <button type="button" data-m="cost">Cost</button>
-          <button type="button" data-m="tokens">Tokens</button>
-        </div>
-        <div class="seg" id="seg-vendor" role="group" aria-label="Filter">
-          <button type="button" data-v="all">All</button>
-          <button type="button" data-v="claude">Claude</button>
-          <button type="button" data-v="antigravity">Antigravity</button>
-        </div>
-      </div>
-    </div>
-    <div id="board"></div>
-  </section>
-
-  <details id="pricing">
-    <summary>Estimate Antigravity cost</summary>
-    <p class="note">Antigravity records tokens but not dollars. Enter a price per million tokens for each model to rank those sessions by estimated cost. Prices stay in this browser.</p>
-    <div id="prices"></div>
-  </details>
-
-  <p class="note" id="foot"></p>
-  </div>
-
+  <div id="pane-bench" role="tabpanel" aria-labelledby="tab-bench"></div>
   <div id="pane-pub" role="tabpanel" aria-labelledby="tab-pub" hidden></div>
-  <div id="pane-bench" role="tabpanel" aria-labelledby="tab-bench" hidden></div>
+
+  <footer class="foot" id="pro">
+    <div class="grid3">
+      <div><h3>Free, forever</h3><p>Grade any session, see your rank, download the card, send a challenge link. Runs in your browser.</p></div>
+      <div><h3>Swarm Pro</h3><p>Private runs that stay off the public board, history and trend lines, a weekly review by email or Slack, and a team board for your org.</p><p><a id="pro-cta" class="btn primary" href="#">Upgrade with Stripe</a></p></div>
+      <div><h3>Privacy</h3><p>Logs are parsed locally and never uploaded. Only the five scores you choose to submit leave your device. The public data is from open Hugging Face datasets, pinned to a revision.</p></div>
+    </div>
+    <p class="sub">Built from public logs under their open licences: see the Public swarm deep dives tab for every source.</p>
+  </footer>
 </main>
+<script src="config.js"></script>
 <script src="battery.js"></script>
 <script src="charts.js"></script>
 <script src="flow.js"></script>
 <script src="fleet.js"></script>
 <script src="mast.js"></script>
 <script src="swarms.js"></script>
+<script src="grade.js"></script>
 <script src="bench.js"></script>
 <script src="app.js"></script>
 </body>

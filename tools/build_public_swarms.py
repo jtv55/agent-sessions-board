@@ -5,6 +5,7 @@ Three lenses, all from openly licensed Hugging Face datasets pinned to a revisio
          armand0e/claude-fable-5-claude-code (MIT), trace-commons/agent-traces (CC-BY-4.0).
   fleet  CooperBench: 368 two-agent coop runs and 368 matched solo runs (MIT), per-agent cost, tokens, status, patch size, test outcomes.
   prod   SemiAnalysis production Claude Code traces with sub-agent fan-out (Apache-2.0): timing and token counts only.
+  pool   choucsan/mimo-claude-code-traces-1k (MIT): ~1,000 single-agent Claude Code-harness sessions, reduced to one compact row each.
   mast   MAST: 1,642 multi-agent framework traces (ChatDev, MetaGPT, AG2, Magentic-One, AppWorld, HyperAgent, OpenManus) with failure-mode labels (CC-BY-4.0).
 
 Downloads are cached in tools/.cache (or $SWARM_CACHE). No message text is stored beyond a short title per agent.
@@ -23,6 +24,8 @@ REV = {
     'solo': ('CooperBench/qwen9b-solo-claude-code', '7394d24338afee35bea8d65c8e2304ed52aebe37', 'MIT'),
     'semi': ('semianalysisai/cc-traces-weka-with-subagents-051926', '78b029aad10404c2ffef3329001588f3326a234b', 'Apache-2.0'),
     'mast': ('mcemri/MAST-Data', '95118ac951421753cf1deb87ddea3b01e693c41b', 'CC-BY-4.0'),
+    'alin': ('AlinCiocan/fable-5-claude-code-traces', 'e33ebbca230ae258b2c28aeee9fe3429e7fbeab6', 'CC-BY-4.0'),
+    'mimo': ('choucsan/mimo-claude-code-traces-1k', '39cc3fc3ed608fff800220445bad9eb1738516f8', 'MIT'),
 }
 
 
@@ -493,9 +496,30 @@ def build_mast():
     return {'keys': FM_KEYS, 'rows': rows, 'pairs': {k: [[a, b2, n] for (a, b2), n in v.most_common(40)] for k, v in pairs.items()}}
 
 
+
+# ---------- pool: large single-agent populations, one compact row per session ----------
+
+def build_pool():
+    from concurrent.futures import ThreadPoolExecutor
+    files = [p for p in listing('mimo') if p.startswith('session/') and p.endswith('.jsonl')]
+    def one(p):
+        try:
+            a, _ = parse_agent(fetch('mimo', p, p.replace('/', '__')), None, main=True)
+        except Exception as e:
+            print('skip', p, e, file=sys.stderr); return None
+        calls = sum(a['tools'].values())
+        if calls < 3 or a['t1'] - a['t0'] <= 0: return None
+        rework = sum(1 for e in a['ev'] if e[1] == W)
+        work = a['edits'] + a['writes'] + a['commits'] + max(0, a['tests'] - a['testsFail'])
+        return [p.split('/')[1], calls, a['errs'], rework, a['tests'], a['testsFail'], work, round(a['t1'] - a['t0']), a['turns'], 0 if a['status'] == 'ok' else 1]
+    with ThreadPoolExecutor(8) as ex:
+        rows = [r for r in ex.map(one, files) if r]
+    return {'cols': ['cat', 'calls', 'errs', 'rework', 'tests', 'testsFail', 'work', 'dur', 'turns', 'lost'], 'rows': rows, 'model': 'mimo-v2.5-pro', 'harness': 'Claude Code'}
+
 # ---------- assemble ----------
 
 SWARMS = [('wisp', 'df04f351-9677-4723-b621-7fb5a597caba'), ('fable', '602033e7-dc55-4b7f-909f-1c67135d8f4b'), ('fable', 'f956721a-0af7-4bdc-8678-3a493d8fcd39')]
+ALIN_MIN_CALLS = 40
 SOLOS = [('wisp', '0a3c90e0-cd2d-41f9-80e2-f6de188257ae'), ('tc', 'da5d32d6-547f-45ae-a5b5-4747ed06542f'), ('tc', '39082932-131c-40a9-872d-1d3ac8ed1fd6'),
          ('fable', 'e3d0c93f-5cf8-4067-9a49-657ba5c67c80'), ('tc', '3be5ba0c-62b2-4645-8589-9216be0c10d8')]
 
@@ -523,10 +547,18 @@ def main():
         sess['license'] = REV[key][2]
         deep.append(sess)
         print(sid[:8], key, 'agents', len(sess['agents']), file=sys.stderr)
+    alin = listing('alin')
+    for p in sorted(x for x in alin if re.match(r'^[0-9a-f-]{36}\.jsonl$', x)):
+        sid = p[:-6]
+        sess = build_session('alin', fetch('alin', p), [], sid)
+        if sum(sum(a['tools'].values()) for a in sess['agents']) < ALIN_MIN_CALLS: continue
+        sess['license'] = REV['alin'][2]
+        deep.append(sess)
+        print(sid[:8], 'alin', 'agents', len(sess['agents']), file=sys.stderr)
     out = {
         'v': 2, 'built': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'),
         'sources': {k: {'repo': v[0], 'rev': v[1], 'license': v[2], 'url': 'https://huggingface.co/datasets/' + v[0]} for k, v in REV.items()},
-        'deep': deep, 'fleet': build_fleet(), 'prod': build_prod(), 'mast': build_mast(),
+        'deep': deep, 'fleet': build_fleet(), 'prod': build_prod(), 'mast': build_mast(), 'pool': build_pool(),
     }
     p = ROOT / 'public-swarms.json'
     p.write_text(json.dumps(out, separators=(',', ':'), ensure_ascii=False), encoding='utf8')
