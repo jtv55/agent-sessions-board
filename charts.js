@@ -67,7 +67,7 @@
   }
 
   // ---------- T&E: what an agent pays to leave its sandbox ----------
-  const sizeOf = n => n < 2 ? 'lone agent' : n <= 4 ? 'fire team' : n <= 12 ? 'squad' : n <= 50 ? 'platoon' : n <= 250 ? 'company' : 'battalion';
+  const sizeOf = n => B.unitOf(n).name.toLowerCase();
   const TE_CATS = ['Web search', 'Web fetch', 'Browser automation', 'SaaS / MCP connector', 'Network shell'];
   const SEARCH_FEE = 0.01;   // Anthropic web search list price: $10 per 1,000 searches
   const teCat = n => n === 'WebSearch' ? TE_CATS[0] : n === 'WebFetch' ? TE_CATS[1] : /^mcp__(claude-in-chrome|playwright|puppeteer|browser)/.test(n) ? TE_CATS[2] : String(n).startsWith('mcp__') ? TE_CATS[3] : TE_CATS[4];
@@ -141,7 +141,7 @@
       const body = tiles([
         [swarm ? '2' : '1', 'layers', 'The logs record the main agent and its sub-agents; deeper nesting would not show up'],
         [String(maxSpan), 'span of control (main → sub-agents)', 'Human managers typically run 5 to 10 direct reports'],
-        [sizeOf(Math.max(...S.map(s => s.agents.length))), 'swarm size', 'Military scale by headcount: fire team 2 to 4, squad 5 to 12, platoon 13 to 50, company 51 to 250, battalion above'],
+        [sizeOf(Math.max(...S.map(s => s.agents.length))), 'swarm size', 'U.S. Army unit sizes by headcount: squad 6 to 10, platoon 18 to 50, company 60 to 200, battalion 300 to 1,000, and so on. A team takes the largest unit it reaches'],
         [String(squads.filter(x => x.q !== '-').length || (subsAll.length ? 1 : 0)), 'waves of helpers', 'A wave is helpers launched together: one workflow run, or a burst started within 5 minutes of each other'],
         [squads.length ? num(median(squads.map(x => x.arr.length))) : 'n/a', 'median wave size'],
         [String(peak), 'peak agents running at once'],

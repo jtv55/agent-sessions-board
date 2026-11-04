@@ -155,7 +155,7 @@
   const unb64u = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
   const baseUrl = () => location.origin + location.pathname;
 
-  const tagFor = n => n >= 32 ? ['A colony.', 'More agents than most teams have people.'] : n >= 16 ? ['A full-on swarm.', 'Helpers launching helpers.'] : n >= 8 ? ['Now that’s a swarm.', 'A proper crowd of agents.'] : n >= 4 ? ['A proper team.', 'A lead and a few helpers.'] : ['A small crew.', 'You’re swarming. Barely.'];
+  const tagFor = n => { const u = B.unitOf(n); return [(/^[AEIOU]/.test(u.name) ? 'An ' : 'A ') + u.name.toLowerCase() + '.', `${n} agents. In Army terms, ${u.range} soldiers.`]; };
 
   function view(r) {
     const e = r.ent, base = { name: e.name, handle: me && me.handle, type: e.type, agents: e.n, calls: e.calls || 0, peak: e.peak || 0 };
