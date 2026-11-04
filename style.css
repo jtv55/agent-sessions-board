@@ -257,3 +257,4 @@ table.bench tbody tr:hover td{background:rgba(124,156,255,.07)}
 .plan ul{margin:6px 0 10px;padding-left:18px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:4px}
 .plan .btn{margin-top:auto;text-align:center}
 @media (max-width:860px){.hero{padding:22px;gap:22px}.proof{grid-template-columns:repeat(2,1fr)}.steps3,.plans{grid-template-columns:1fr}.podium{grid-template-columns:1fr}.pod.p1{order:-1}.hero-r .res-top canvas{transform:none}}
+.meter{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin:8px 0}.meter i{display:block;height:100%;background:var(--good);border-radius:6px}

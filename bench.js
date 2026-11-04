@@ -239,8 +239,9 @@
   }
 
   function apiObj() {
+    const commCount = () => COMM.length;
     const statsFn = () => { const a = D.deep.flatMap(s => s.agents); return [[(D.mast.rows.length + D.fleet.agents.length + D.corpus.pool.rows.length).toLocaleString(), 'agent runs scored'], [String(D.deep.length), 'Claude Code sessions'], [sum(a.map(x => x.calls)).toLocaleString(), 'tool calls read'], [String(Object.keys(D.corpus.sources).length), 'open datasets']]; };
-    return { stats: statsFn, owner: e => disp(Object.assign({}, e, { owner: ownerOf(e) })), DIMS, GCOL, grade, place, count: () => bestPerOwner(E.map(x => Object.assign(composite(x), { owner: ownerOf(x) })).filter(x => x.cov >= 0.5 && x.score != null)).length,
+    return { commCount, stats: statsFn, owner: e => disp(Object.assign({}, e, { owner: ownerOf(e) })), DIMS, GCOL, grade, place, count: () => bestPerOwner(E.map(x => Object.assign(composite(x), { owner: ownerOf(x) })).filter(x => x.cov >= 0.5 && x.score != null)).length,
       you: s => Object.assign(deepEntrant(s), { you: true, id: 'you' }), setYou: e => { YOU = e; if (e) sel = 'you'; }, setHandle: () => paint(), repaint: paint, refreshCommunity,
       demoEntrant: () => { const r = E.map(e => Object.assign({}, e, composite(e))).filter(e => e.type === 'swarm' && e.cov >= 0.5).sort((p, q) => q.score - p.score)[0]; return r ? Object.assign({}, r) : null; } };
   }
