@@ -21,7 +21,7 @@
 
   // Stripe Payment Link from config.js; stays disabled until one is set.
   const cfg = window.SWARM_CONFIG || {}, cta = $('pro-cta');
-  if (cfg.STRIPE_LINK) { cta.href = cfg.STRIPE_LINK; cta.target = '_blank'; cta.rel = 'noopener noreferrer'; cta.textContent = 'Upgrade with Stripe'; $('pro-price').textContent = cfg.PRICE || ''; $('nav-pro').hidden = false; }
+  if (cfg.STRIPE_LINK) { cta.href = cfg.STRIPE_LINK; cta.target = '_blank'; cta.rel = 'noopener noreferrer'; cta.textContent = 'Join as a member'; $('pro-price').textContent = cfg.PRICE || ''; $('nav-pro').hidden = false; }
   else { cta.setAttribute('aria-disabled', 'true'); cta.textContent = 'Coming soon'; }
 
   setTab('bench');

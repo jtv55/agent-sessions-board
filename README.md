@@ -8,7 +8,7 @@ Swarm check: count the agents in your Claude Code session logs and rank them aga
 
 ## Turning on the business side
 Edit `config.js`:
-- `STRIPE_LINK`: a Stripe Payment Link for Swarm Index. Enables the upgrade buttons.
+- `STRIPE_LINK`: a Stripe Payment Link for Swarm Members. Enables the upgrade buttons.
 - `API`: URL of the board API (`backend/worker.js`, a Cloudflare Worker + KV). Enables claim-a-handle and the community leaderboard. Also allow its origin in the CSP `connect-src` in `index.html` (`*.workers.dev` is already allowed).
 
 Without either, the site is a complete single-player grader.
