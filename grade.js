@@ -187,7 +187,7 @@
 
   function challenge(d) {
     if (d.na) return baseUrl(); return baseUrl() + '#c=' + b64u({ h: d.handle || '', n: d.agents, c: d.calls }); }
-  const shareText = d => d.na ? 'I got an N/A on "Do you even swarm?": one agent, no helpers. Can you do better?' : `I run swarms of ${d.agents} agents: #${d.rank} of ${d.of} on "Do you even swarm?" ${d.tag} Think you can beat that?`;
+  const shareText = d => d.na ? 'I got an N/A on "Do you even swarm?": one agent, no helpers. Can you do better?' : `I run swarms of ${d.agents} agents: #${d.rank} of ${d.of} on "Do you even swarm?" ${d.tag} How big are your swarms?`;
 
   function resultHtml() {
     if (!results.length) return '';
