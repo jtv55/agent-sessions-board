@@ -76,13 +76,19 @@
     return C.tiles([[String(sel.length), sel.length === 1 ? 'session' : 'sessions'], [String(A.length), 'agents'], [String(A.length - sel.length), 'sub-agents'], [tok(sum(A.map(a => a.proc))), 'tokens processed'], [dur(sum(sel.map(s => s.stats.active))), 'active working time', 'Gaps over 30 minutes removed'], [String(sum(sel.map(s => s.human))), 'human prompts']]);
   }
 
+  const userOf = s => (corpus.sources[s.src] ? corpus.sources[s.src].repo.split('/')[0] : s.src);
   function deepLens() {
-    const sel = st.scope === 'all' ? deep : deep.filter(s => s.id === st.scope);
+    const users = [...new Set(deep.map(userOf))];
+    if (st.user == null || (st.user !== 'all' && !users.includes(st.user))) st.user = deep[0] ? userOf(deep[0]) : 'all';
+    const mine = st.user === 'all' ? deep : deep.filter(s => userOf(s) === st.user);
+    if (st.scope !== 'all' && !mine.some(s => s.id === st.scope)) st.scope = 'all';
+    const sel = st.scope === 'all' ? mine : mine.filter(s => s.id === st.scope);
     const sc = { sessions: sel, agents: sel.flatMap(s => s.agents) };
     const res = C.deepSections(sc);
-    const chips = ['all'].concat(deep.map(s => s.id)).map(id => `<button type="button" data-scope="${esc(id)}" aria-pressed="${st.scope === id}">${esc(id === 'all' ? `All ${deep.length} sessions` : sessionLabel(deep.find(s => s.id === id)))}</button>`).join('');
+    const chips = ['all'].concat(users).map(u => `<button type="button" data-user="${esc(u)}" aria-pressed="${st.user === u}">${esc(u === 'all' ? `All users (${deep.length})` : '@' + u + ' (' + deep.filter(s => userOf(s) === u).length + ')')}</button>`).join('');
+    const pick = `<label class="sess-pick"><span>Session</span><select data-sess="1" aria-label="Choose a session">${[`<option value="all"${st.scope === 'all' ? ' selected' : ''}>${st.user === 'all' ? 'All sessions' : 'All ' + mine.length + ' session' + (mine.length === 1 ? '' : 's') + ' by @' + esc(st.user)}</option>`].concat(mine.map(x => `<option value="${esc(x.id)}"${st.scope === x.id ? ' selected' : ''}>${esc(sessionLabel(x))}</option>`)).join('')}</select></label>`;
     const jump = res.sections.map(s => { const id = /id="sw-([^"]+)"/.exec(s)[1]; return `<a href="#sw-${id}" data-jump="${id}">${esc(SEC_LABEL[id] || id)}</a>`; }).join('');
-    return { html: `<p class="sub"><b>Deep dives:</b> real working sessions of Claude Code, read call by call, so every question on the list can be answered. Choose one session, or all of them.</p><div class="scopes" role="group" aria-label="Session">${chips}</div>${summaryTiles(sel)}<nav class="jump" aria-label="Sections">${jump}</nav>${res.sections.join('')}`, ctx: res.ctx };
+    return { html: `<p class="sub"><b>Deep dives:</b> real working sessions of Claude Code, read call by call, so every question on the list can be answered. Pick a user, then narrow to one of their sessions if you like.</p><div class="scopes" role="group" aria-label="User">${chips}</div>${pick}${summaryTiles(sel)}<nav class="jump" aria-label="Sections">${jump}</nav>${res.sections.join('')}`, ctx: res.ctx };
   }
 
   function fleetLens() {
@@ -153,11 +159,12 @@
   function bind(el) {
     el.addEventListener('click', e => {
       const l = e.target.closest('[data-lens]'); if (l) { st.lens = l.dataset.lens; render(); return; }
-      const s = e.target.closest('[data-scope]'); if (s) { st.scope = s.dataset.scope; render(); return; }
+      const us = e.target.closest('[data-user]'); if (us) { st.user = us.dataset.user; st.scope = 'all'; render(); return; }
       const ms = e.target.closest('[data-mscope]'); if (ms) { st.mscope = ms.dataset.mscope; render(); return; }
       const p = e.target.closest('[data-prod]'); if (p) { st.prod = st.prod === p.dataset.prod ? null : p.dataset.prod; render(); return; }
       const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); const t = document.getElementById('sw-' + j.dataset.jump); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     });
+    el.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.sess) { st.scope = e.target.value; render(); } });
     if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!el.hidden) render(); });
   }
 
