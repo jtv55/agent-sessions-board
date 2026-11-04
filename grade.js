@@ -287,7 +287,7 @@
         <details class="phone" id="gr-phone"><summary>Can’t find your log? Ask Claude with this prompt</summary><p class="sub">Paste this into your Claude Code session. It hands you one file with everything in it, sub-agents included, so a swarm still counts. Save the file, then tap or click <b>Choose files</b> and pick it.</p><pre class="prompt" id="gr-prompt">Find this session's log: the newest .jsonl file for this project in ~/.claude/projects/. Merge it and every sub-agent log in the subagents folder beside it into ONE file by concatenating them, name it swarm-session.json, and send it to me as a downloadable file.</pre><button type="button" data-copy="__PROMPT__">Copy prompt</button></details>
         <input id="gr-fi" type="file" accept=".jsonl,.json" multiple hidden><input id="gr-fo" type="file" webkitdirectory hidden>
         <p class="sub" id="gr-status" role="status">Claude Code saves each session as a .jsonl file in the <code>.claude/projects</code> folder inside your home folder, with sub-agent transcripts in a <code>subagents</code> folder beside it. Not sure where that is? Use the prompt above.</p>
-        <p class="nasay"><b>No sub-agents in your logs?</b> You get an N/A, and the shame: <em>you don’t even swarm!</em></p>
+        <p class="nasay"><b>No sub-agents in your logs?</b> You get an N/A: <em>you don’t even swarm!</em></p>
       </div>
       <div class="hero-r" id="gr-result"></div></section>
       <section class="proof" aria-label="What the check is built from">${api.stats().map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('')}</section>
