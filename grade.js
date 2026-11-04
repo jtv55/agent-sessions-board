@@ -274,6 +274,7 @@
         <p class="lead">Drop your Claude Code logs. Get a letter grade, a rank among ${api.count()} public agent teams, and a card to flex. Parsed in this tab: open your network panel and watch nothing leave.</p>
         <div id="drop" class="drop" tabindex="0" role="button" aria-label="Drop session logs here or press Enter to choose a folder"><b>Drop a folder or .jsonl files here</b><span>or press Enter to choose</span></div>
         <div class="hero-btns"><button type="button" data-g="folder">Choose folder</button><button type="button" data-g="files">Choose files</button><button type="button" data-g="demo">Try a sample swarm</button></div>
+        <details class="phone" id="gr-phone"><summary>On your phone? Get the log from Claude</summary><p class="sub">Phones can't pick folders, but you can ask your Claude Code session to hand you the files. Paste this into the session, save what it sends to Files, then tap <b>Choose files</b> and select them all (the main log plus any sub-agent logs).</p><pre class="prompt" id="gr-prompt">Find this session's log: the newest .jsonl file for this project in ~/.claude/projects/, plus any sub-agent logs in the subagents folder beside it. Copy them into one folder, rename each .jsonl to .json, and send them to me as downloadable files.</pre><button type="button" data-copy="__PROMPT__">Copy prompt</button></details>
         <input id="gr-fi" type="file" accept=".jsonl,.json" multiple hidden><input id="gr-fo" type="file" webkitdirectory hidden>
         <p class="sub" id="gr-status" role="status">Where are my logs? Claude Code writes them to <code>~/.claude/projects/</code> (on Windows <code>%USERPROFILE%\\.claude\\projects</code>). Sub-agent transcripts live in a <code>subagents</code> folder beside each session.</p>
         <p class="sub">No sub-agents in the logs? You get an N/A: you didn’t even swarm. Single agents are only on the table as the control group.</p>
@@ -282,6 +283,8 @@
       <section class="proof" aria-label="What the benchmark is built from">${api.stats().map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('')}</section>
       <ol class="steps3"><li><b>Drop</b><span>A folder or a .jsonl. Parsed locally, never uploaded.</span></li><li><b>Get graded</b><span>Five dimensions, A to F, ranked against every public swarm. No sub-agents? N/A.</span></li><li><b>Flex or fix</b><span>Download the card, send a challenge link, paste a README badge.</span></li></ol>`;
     const drop = $(host, '#drop');
+    $(host, '[data-copy="__PROMPT__"]').dataset.copy = $(host, '#gr-prompt').textContent;
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) { $(host, '#gr-phone').open = true; drop.querySelector('b').textContent = 'Tap to choose your log files'; drop.querySelector('span').textContent = 'JSON or JSONL from Claude Code'; }
     ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', async e => { const items = [...(e.dataTransfer.items || [])]; const files = items.length && items[0].webkitGetAsEntry ? await readEntries(items) : [...e.dataTransfer.files]; grade(files); });
