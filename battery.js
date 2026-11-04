@@ -135,7 +135,7 @@
 
   // Team size in U.S. Army units (thirteen.org, "U.S. Army Units Explained"). A team takes the largest unit whose lower bound it reaches,
   // so the gaps between the article's ranges fall to the smaller unit. "Fire team" is not in the article; it fills the 2 to 5 below a squad.
-  const UNITS = [[2, 'Fire team', '2 to 5'], [6, 'Squad', '6 to 10'], [18, 'Platoon', '18 to 50'], [60, 'Company', '60 to 200'], [300, 'Battalion', '300 to 1,000'], [2000, 'Brigade', '2,000 to 5,000'], [10000, 'Division', '10,000 to 15,000'], [20000, 'Corps', '20,000 to 45,000'], [50000, 'Field army', '50,000 and more']];
-  const unitOf = n => { let u = null; UNITS.forEach(x => { if (n >= x[0]) u = x; }); return u ? { name: u[1], range: u[2] } : { name: 'Lone agent', range: '1' }; };
+  const UNITS = [[2, 'Fire team', '2 to 5', 'Sergeant'], [6, 'Squad', '6 to 10', 'Staff Sergeant'], [18, 'Platoon', '18 to 50', '2nd Lieutenant'], [60, 'Company', '60 to 200', 'Captain'], [300, 'Battalion', '300 to 1,000', 'Lieutenant Colonel'], [2000, 'Brigade', '2,000 to 5,000', 'Colonel'], [10000, 'Division', '10,000 to 15,000', 'Major General (2-star)'], [20000, 'Corps', '20,000 to 45,000', 'Lieutenant General (3-star)'], [50000, 'Field army', '50,000 and more', 'General (4-star)']];
+  const unitOf = n => { let u = null; UNITS.forEach(x => { if (n >= x[0]) u = x; }); return u ? { name: u[1], range: u[2], rank: u[3] } : { name: 'Lone agent', range: '1', rank: 'Private (leads no one)' }; };
   window.SWB = { unitOf, BUCKETS, KTLO, RATE, LEVELS, EXPECTS, tierOf, merge, sum, median, share, enrich, prepDeep, mayor, paretoCurve, percentileInGroup, prepFleet, peakConcurrency };
 })();

@@ -107,12 +107,13 @@
       const body = tiles([
         [top.a.layer === 0 ? 'Main agent' : 'Sub ' + top.a.id.slice(1), 'highest-influence agent (' + top.a.role + ')', 'Influence = average of an agent\'s share of tokens, work output (edits, writes, commits, passing tests) and coordination calls'],
         [pct(top.inf), 'of session influence'],
+        [B.unitOf(Math.max(...S.map(s => s.agents.length))).rank, 'orchestrator rank', 'Army rank that commands a unit this size: ' + sizeOf(Math.max(...S.map(s => s.agents.length))) + ' (' + B.unitOf(Math.max(...S.map(s => s.agents.length))).range + ' soldiers). Sergeant leads a fire team, staff sergeant a squad, 2nd lieutenant a platoon, captain a company, lieutenant colonel a battalion, colonel a brigade, then two-, three- and four-star generals for division, corps and field army. Five stars are only given in wartime'],
         [String(sum(A.map(a => a.delegations))), 'delegation calls (Task/Agent/Workflow)'],
         [String(sum(A.map(a => a.polls))), 'status polls (TaskOutput)'],
         [String(human), human === 1 ? 'human prompt' : 'human prompts', 'Prompts typed by a person (excluding tool results and injected context)'],
         [turns && human ? Math.round(turns / human) + ' : 1' : 'n/a', 'agent turns per human prompt'],
       ]) + plot(ctx, Math.max(230, ranked.length * 34 + 70), data, L({ barmode: 'stack', showlegend: true, margin: { l: 220 }, xaxis: { title: { text: 'influence points (stacked = share of total)' } } }));
-      const real = swarm ? `${b(lab(top.a, multi))} holds ${b(pct(top.inf))} of the influence${top.a.layer === 0 ? ', so the orchestrator holds the power in fact as well as in name' : ', which is not the orchestrator: a sub-agent is quietly running the show'}.`
+      const uo = B.unitOf(Math.max(...S.map(s => s.agents.length))), real = swarm ? `Leading ${b(Math.max(...S.map(s => s.agents.length)))} agents, the orchestrator holds the rank of ${b(uo.rank)} (a ${uo.name.toLowerCase()}). ${b(lab(top.a, multi))} holds ${b(pct(top.inf))} of the influence${top.a.layer === 0 ? ', so the orchestrator holds the power in fact as well as in name' : ', which is not the orchestrator: a sub-agent is quietly running the show'}.`
         : `Only one agent here, so the person is the real mayor: ${b(human)} prompts steered ${b(num(turns))} agent turns (${b(corr)} corrections, ${b(intr)} interrupts).`;
       out.push(card('mayor', 1, 'Orchestrator power', 'Org-chart power: who spends the tokens, produces the work and does the coordinating.', body, real));
     }
