@@ -263,3 +263,9 @@ table.bench tbody tr:hover td{background:rgba(124,156,255,.07)}
 
 .nothing{margin:6px 0 14px;font-size:14px;font-weight:600;color:var(--text)}.nothing i{font-style:normal;margin-right:6px}
 .nasay{margin:12px 0 0;padding:12px 16px;border:1px dashed var(--accent);border-radius:12px;background:color-mix(in srgb,var(--accent) 8%,transparent);font-size:16px;line-height:1.4}.nasay em{font-style:normal;font-weight:700;color:var(--accent);white-space:nowrap}
+.srcs h3{margin:26px 0 2px}
+.srcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:10px}
+.srccard{display:flex;flex-direction:column;gap:6px;text-decoration:none;color:inherit}
+.srccard:hover{border-color:var(--accent)}
+.srccard p{margin:0}
+.srcurl{margin-top:auto;font-size:12px;color:var(--accent);overflow-wrap:anywhere}

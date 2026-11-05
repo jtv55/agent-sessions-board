@@ -1,13 +1,14 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  const ORDER = ['bench', 'pub'];
+  const ORDER = ['bench', 'pub', 'src'];
 
   function setTab(t) {
     document.querySelectorAll('[role="tab"]').forEach(b => { const on = b.dataset.tab === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
-    $('pane-bench').hidden = t !== 'bench'; $('pane-pub').hidden = t !== 'pub';
+    $('pane-bench').hidden = t !== 'bench'; $('pane-pub').hidden = t !== 'pub'; $('pane-src').hidden = t !== 'src';
     if (t === 'bench') window.Bench.open($('pane-bench'));
     if (t === 'pub') window.Swarms.open($('pane-pub'));
+    if (t === 'src') window.Sources.open($('pane-src'));
   }
 
   window.Swarms.bind($('pane-pub')); window.Bench.bind($('pane-bench'));
